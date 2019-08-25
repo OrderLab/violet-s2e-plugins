@@ -85,5 +85,10 @@ namespace s2e {
             plgState->increment();
         }
 
+        int InstructionTracker::getScore(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
+            return  plgState->get();
+        }
+
     } // namespace plugins
 } // namespace s2e

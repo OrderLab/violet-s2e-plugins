@@ -18,6 +18,7 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Utils.h>
+#include "s2e/Plugins/InstructionTracker.h"
 
 #include <TraceEntries.pb.h>
 
@@ -157,7 +158,29 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 }
 
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
-    getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+
+    //Violet change: Add the score when generating the test case
+    Plugin *plugin;
+    InstructionTracker *iface = nullptr;
+    plugin = s2e()->getPlugin("InstructionTracker");
+    if (!plugin) {
+        getWarningsStream(state) << "ERROR: InstructionTracker could not find plugin " << "\n";
+        getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+    } else {
+        iface = dynamic_cast<InstructionTracker *>(plugin);
+
+        if (!iface) {
+            getWarningsStream(state) << "ERROR: InstructionTracker is not an instance of IPluginInvoker\n";
+            getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+        } else {
+            getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) <<
+            "; the score is "<< iface->getScore(state) <<'\n';
+
+        }
+
+    }
+
+
 
     ConcreteInputs inputs;
     bool success = state->getSymbolicSolution(inputs);
