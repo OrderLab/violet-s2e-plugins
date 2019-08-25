@@ -125,6 +125,7 @@ add_library(
     s2e/Plugins/Lua/LuaExpression.cpp
     s2e/Plugins/Lua/LuaCoreEvents.cpp
 
+    s2e/Plugins/InstructionTracker.cpp
     ${PROTO_SRCS} ${PROTO_HDRS}
 )
 
