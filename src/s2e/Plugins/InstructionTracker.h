@@ -25,6 +25,7 @@ namespace s2e {
             void onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc);
             void onInstructionExecution(S2EExecutionState *state, uint64_t pc);
             void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
+            int getScore(S2EExecutionState *state);
         };
 
     } // namespace plugins
