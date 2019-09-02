@@ -180,8 +180,6 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
 
     }
 
-
-
     ConcreteInputs inputs;
     bool success = s2e()->getExecutor()->getSymbolicSolution(*state, inputs);
 
