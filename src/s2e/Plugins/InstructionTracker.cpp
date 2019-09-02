@@ -5,6 +5,7 @@
 #include <s2e/S2E.h>
 #include <s2e/Utils.h>
 
+
 #include "InstructionTracker.h"
 
 namespace s2e {
@@ -55,7 +56,7 @@ namespace s2e {
                                                         S2EExecutionState *state,
                                                         TranslationBlock *tb,
                                                         uint64_t pc) {
-            //s2e()->getDebugStream() << "Executing instruction at " << hexval(pc) << '\n';
+            s2e()->getDebugStream() << "Executing instruction at " << hexval(pc) << '\n';
             if(m_address == pc) {
                 // When we find an interesting address, ask S2E to invoke our callback when the address is actually
                 // executed
@@ -77,10 +78,31 @@ namespace s2e {
         }
 
         void InstructionTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
+            uint64_t addr = state->regs()->getPc();
+            getDebugStream(state) << "OnCustomInstruction: the next instruction is " << hexval(addr) << '\n';
+
             DECLARE_PLUGINSTATE(InstructionTrackerState, state);
 
             getDebugStream(state) << "OnCustomInstruction: Invoking Instruction Tracker " << plgState->get()  << '\n';
 
+
+            // First check if argument is symbolic
+            ref<Expr> readArg = state->mem()->read(addr, state->getPointerWidth());
+            if (!isa<ConstantExpr>(readArg)) {
+                getDebugStream(state) << "Instruction at " << hexval(addr) << " is symbolic\n";
+                return ;
+            }
+
+            // If not, read concrete value
+            char* ret = (char *) malloc(100);
+            bool ok = state->mem()->read(addr, ret);
+            if (!ok) {
+                getDebugStream(state) << "Failed to read instruction at " << hexval(addr) << "\n";
+                free(ret);
+                return ;
+            }
+
+            free(ret);
             // Increment the count
             plgState->increment();
         }

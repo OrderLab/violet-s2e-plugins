@@ -10,6 +10,8 @@
 #include <s2e/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/Plugins/Core/BaseInstructions.h>
+#include <s2e/Plugins/OSMonitors/Support/MemUtils.h>
+#include <klee/Expr.h>
 
 namespace s2e {
     namespace plugins {
