@@ -112,6 +112,25 @@ void BaseLinuxMonitor::handleModuleLoad(S2EExecutionState *state, uint64_t pid,
     auto module =
         ModuleDescriptor::get(modulePath, moduleName, pid, state->regs()->getPageDir(), modLoad.entry_point, sections);
 
+    //Violet Change
+    if ((module.Name.compare("sample") == 0) || (module.Name.compare("mysqld") == 0)) {
+        //Violet change: Send the entry point to InstructionTracker
+        Plugin *plugin;
+        InstructionTracker *iface = nullptr;
+        plugin = s2e()->getPlugin("InstructionTracker");
+        if (!plugin) {
+            getWarningsStream(state) << "ERROR: InstructionTracker could not find plugin " << "\n";
+        } else {
+            iface = dynamic_cast<InstructionTracker *>(plugin);
+
+            if (!iface) {
+                getWarningsStream(state) << "ERROR: InstructionTracker is not an instance of IPluginInvoker\n";
+            } else {
+                getInfoStream(state) << "Sending Entry point\n";
+                iface->setEntryPoint(state, modLoad.entry_point);
+            }
+        }
+    }
     getDebugStream(state) << module << '\n';
 
     onModuleLoad.emit(state, module);
