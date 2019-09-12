@@ -17,9 +17,13 @@
 #include <s2e/Plugins/Core/Vmi.h>
 #include <s2e/Plugins/OSMonitors/ModuleDescriptor.h>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
+#include "s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h"
+#include "s2e/Plugins/ConfigurationAnalysis/FunctionProfiler.h"
 
 #include <map>
 #include <sstream>
+#include <string.h>
+#include<iostream>
 
 extern "C" {
 extern CPUX86State *env;
