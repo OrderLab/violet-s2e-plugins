@@ -18,7 +18,7 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Utils.h>
-#include "s2e/Plugins/InstructionTracker.h"
+#include "s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h"
 
 #include <TraceEntries.pb.h>
 
@@ -177,7 +177,6 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
             "; the score is "<< iface->getScore(state) <<'\n';
 
         }
-
     }
 
     ConcreteInputs inputs;
