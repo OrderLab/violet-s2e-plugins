@@ -125,6 +125,9 @@ add_library(
     s2e/Plugins/Lua/LuaExpression.cpp
     s2e/Plugins/Lua/LuaCoreEvents.cpp
 
+    #Viotlet
+        s2e/Plugins/ConfigurationAnalysis/InstructionTracker.cpp
+        s2e/Plugins/ConfigurationAnalysis/FunctionProfiler.cpp
     ${PROTO_SRCS} ${PROTO_HDRS}
 )
 
