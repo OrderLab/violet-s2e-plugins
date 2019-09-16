@@ -18,7 +18,6 @@
 #include <s2e/Plugins/OSMonitors/ModuleDescriptor.h>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
 #include "s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h"
-#include "s2e/Plugins/ConfigurationAnalysis/FunctionProfiler.h"
 
 #include <map>
 #include <sstream>

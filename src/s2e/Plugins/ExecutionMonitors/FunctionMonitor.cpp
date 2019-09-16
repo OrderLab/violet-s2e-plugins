@@ -27,13 +27,14 @@ void FunctionMonitor::initialize() {
     m_detector = s2e()->getPlugin<ModuleExecutionDetector>();
 
     m_localCalls = s2e()->getConfig()->getBool(getConfigKey() + ".monitorLocalFunctions");
-
+    getWarningsStream() << "Yigong Hu: " << m_localCalls << "\n";
     if (m_localCalls) {
         if (!m_detector) {
             getWarningsStream() << "FunctionMonitor: requires ModuleExecutionDetector when"
                                 << " monitorLocalFunctions is true\n";
             exit(-1);
         }
+
         m_detector->onModuleTranslateBlockEnd.connect(
             sigc::mem_fun(*this, &FunctionMonitor::slotModuleTranslateBlockEnd));
 
