@@ -127,8 +127,7 @@ add_library(
 
     #Viotlet
         s2e/Plugins/ConfigurationAnalysis/InstructionTracker.cpp
-        s2e/Plugins/ConfigurationAnalysis/FunctionProfiler.cpp
-    ${PROTO_SRCS} ${PROTO_HDRS}
+        ${PROTO_SRCS} ${PROTO_HDRS}
 )
 
 

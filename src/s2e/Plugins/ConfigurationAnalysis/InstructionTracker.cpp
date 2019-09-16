@@ -7,7 +7,10 @@
 #include <s2e/Plugins/Core/BaseInstructions.h>
 #include <s2e/Plugins/OSMonitors/Support/MemUtils.h>
 #include "InstructionTracker.h"
-
+#include <list>
+#include <stack>
+#include <ctime>
+using namespace std;
 namespace s2e {
     namespace plugins {
         class InstructionTrackerState : public PluginState{
@@ -15,10 +18,12 @@ namespace s2e {
             int m_count;
             uint64_t entry_point;
             bool evoked;
-            FunctionProfiler* m_plugin;
             bool regiesterd;
+            stack<pair<uint64_t,clock_t>> call_list;
 
         public:
+            list<pair<uint64_t,double>> call_latency;
+
             InstructionTrackerState() {
                 m_count = 0;
                 entry_point = 0;
@@ -66,6 +71,23 @@ namespace s2e {
             bool getRegState() {
                 return regiesterd;
             }
+
+            void functionStart(uint64_t addr) {
+                clock_t begin = clock();
+                call_list.push(make_pair(addr,begin));
+            }
+
+            void functionEnd() {
+                if (call_list.empty()) {
+                    cout << "No caller\n";
+                    return;
+                }
+                pair<uint64_t,clock_t> temp = call_list.top();
+                call_list.pop();
+                clock_t end = clock();
+                call_latency.push_back(make_pair(temp.first,double(end - temp.second) / CLOCKS_PER_SEC));
+            }
+
         };
         // Define a plugin whose class is InstructionTracker and called "InstructionTracker"
         S2E_DEFINE_PLUGIN(InstructionTracker,                   // Plugin class
@@ -89,57 +111,32 @@ namespace s2e {
                                                         uint64_t pc) {
             DECLARE_PLUGINSTATE(InstructionTrackerState, state);
             uint64_t entryPoint = plgState->getEntryPoint();
-            m_monitor = s2e()->getPlugin<FunctionMonitor>();
-            s2e()->getCorePlugin()->onTranslateBlockStart.connect(
-                    sigc::mem_fun(*this, &InstructionTracker::slotTranslateBlockStart));
-            if(entryPoint && ((m_address + entryPoint) == pc)) {
-                // When we find an interesting address, ask S2E to invoke our callback when the address is actually
-                // executed
-                signal->connect(sigc::mem_fun(*this, &InstructionTracker::onInstructionExecution));
 
+            if(entryPoint) {
+                // When s2e starts at the entry of our module, we begin to analyse function
+                m_monitor = s2e()->getPlugin<FunctionMonitor>();
+                if(plgState->getRegState()) {
+                    return;
+                }
+                callSignal = m_monitor->getCallSignal(state, -1, -1);
+                callSignal->connect(sigc::mem_fun(*this, &InstructionTracker::functionCallMonitor));
+
+                plgState->setRegState(true);
             }
         }
 
-        // This callback is called only when the instruction at our address is executed.
-        // The callback incurs zero overhead for all other instructions
-        void InstructionTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
-            // This macro declares the plgState variable of type InstructionTrackerState.
-            // It automatically takes care of retrieving the right plugin state attached to the specified execution state
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-
-            getDebugStream(state) << "Executing instruction at " << hexval(pc) << '\n';
-
-            // Increment the count
-            plgState->increment();
-            if (plgState->get() > 11) {
-                // Kill the current state
-                getInfoStream(state) << "Killing state " << state->getID() << '\n';
-                getInfoStream(state) << "Terminating state: State was terminated by exceeding the threshold\n";
-                s2e()->getExecutor()->terminateState(*state);
-            }
-        }
-
-        void InstructionTracker::slotTranslateBlockStart(ExecutionSignal* signal,
-                                                       S2EExecutionState* state,
-                                                       TranslationBlock* tb,
-                                                       uint64_t pc){
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-            uint64_t entryPoint = plgState->getEntryPoint();
-            if(plgState->getRegState()) {
-                return;
-            }
-            getDebugStream(state) << "The entry point is " << hexval(m_address+entryPoint) << '\n';
-            callSignal = m_monitor->getCallSignal(state, m_address+entryPoint, -1);
-            callSignal->connect(sigc::mem_fun(*this, &InstructionTracker::functionCallMonitor));
-
-            plgState->setRegState(true);
-        }
 
         void InstructionTracker::functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms) {
-            uint64_t addr = state->regs()->getPc();
-            getDebugStream(state) << "Evoke call monitor at state" << state->getID() << " pc 0x" <<  hexval(addr)  << "\n";
-            FUNCMON_REGISTER_RETURN(state, fms, InstructionTracker::functionRetMonitor);
             DECLARE_PLUGINSTATE(InstructionTrackerState, state);
+            uint64_t addr = state->regs()->getPc();
+
+            uint64_t entryPoint = plgState->getEntryPoint();
+            if (m_address+entryPoint == addr) {
+                plgState->increment();
+            }
+            FUNCMON_REGISTER_RETURN(state, fms, InstructionTracker::functionRetMonitor);
+            getDebugStream(state) << "Evoke call monitor at state " << state->getID() << ", pc:" << hexval(addr) << "\n";
+            plgState->functionStart(addr);
             plgState->setEvokeState(state, true);
         }
 
@@ -147,11 +144,33 @@ namespace s2e {
             // ...
             // Perform here any analysis or state manipulation you wish
             // ...
+            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
             uint64_t addr = state->regs()->getPc();
-            getDebugStream(state) << "Evoke return monitor at state" << state->getID() << " pc 0x" <<  hexval(addr)  << "\n";
+            getDebugStream(state) << "Evoke return monitor at state " << state->getID() << " pc:" <<  hexval(addr)  << "\n";
+            plgState->functionEnd();
         }
 
-        void InstructionTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
+
+        int InstructionTracker::getScore(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
+            return  plgState->get();
+        }
+
+        void InstructionTracker::functionForEach(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
+            for (auto iterator = plgState->call_latency.begin(); iterator != plgState->call_latency.end(); ++iterator) {
+                getInfoStream(state) << "Function " << hexval(iterator->first) << " runs " << iterator->second << "s\n";
+            }
+        }
+
+        void InstructionTracker::setEntryPoint(S2EExecutionState *state,uint64_t entry_point) {
+            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
+            getInfoStream(state) << "Set the Entry Point " << hexval(entry_point) << '\n';
+            return  plgState->setEntryPoint(entry_point);
+        }
+
+        /**
+         *         void InstructionTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
             DECLARE_PLUGINSTATE(InstructionTrackerState, state);
             uint64_t addr = state->regs()->getPc();
             getDebugStream(state) << "OnCustomInstruction: Invoking Instruction Tracker at " << hexval(addr) << '\n';
@@ -167,17 +186,7 @@ namespace s2e {
                 s2e()->getExecutor()->terminateState(*state);
             }
         }
-
-        int InstructionTracker::getScore(S2EExecutionState *state) {
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-            return  plgState->get();
-        }
-
-        void InstructionTracker::setEntryPoint(S2EExecutionState *state,uint64_t entry_point) {
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-            getInfoStream(state) << "Set the Entry Point " << hexval(entry_point) << '\n';
-            return  plgState->setEntryPoint(entry_point);
-        }
+         */
 
     } // namespace plugins
 } // namespace s2e
