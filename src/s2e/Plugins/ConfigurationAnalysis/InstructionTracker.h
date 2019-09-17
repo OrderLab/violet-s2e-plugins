@@ -16,14 +16,17 @@
 namespace s2e {
     namespace plugins {
 
-        class InstructionTracker : public Plugin {
+        class InstructionTracker : public Plugin, public IPluginInvoker {
             S2E_PLUGIN
         private:
             uint64_t m_address;
+            bool m_flag;
             FunctionMonitor* m_monitor;
             FunctionMonitor::CallSignal* callSignal;
         public:
-            InstructionTracker(S2E *s2e) : Plugin(s2e) {}
+            InstructionTracker(S2E *s2e) : Plugin(s2e) {
+                m_flag = false;
+            }
 
             void initialize();
             void onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc);
@@ -32,6 +35,7 @@ namespace s2e {
             void functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms);
             void functionRetMonitor(S2EExecutionState *state);
             void functionForEach(S2EExecutionState *state);
+            void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
         };
 
     } // namespace plugins
