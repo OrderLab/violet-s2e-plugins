@@ -27,7 +27,6 @@ void FunctionMonitor::initialize() {
     m_detector = s2e()->getPlugin<ModuleExecutionDetector>();
 
     m_localCalls = s2e()->getConfig()->getBool(getConfigKey() + ".monitorLocalFunctions");
-    getWarningsStream() << "Yigong Hu: " << m_localCalls << "\n";
     if (m_localCalls) {
         if (!m_detector) {
             getWarningsStream() << "FunctionMonitor: requires ModuleExecutionDetector when"
