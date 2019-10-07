@@ -20,12 +20,13 @@ namespace s2e {
             S2E_PLUGIN
         private:
             uint64_t m_address;
-            bool m_flag;
+            bool is_profileAll;
+            bool is_traceSyscall;
             FunctionMonitor* m_monitor;
             FunctionMonitor::CallSignal* callSignal;
         public:
             InstructionTracker(S2E *s2e) : Plugin(s2e) {
-                m_flag = false;
+                is_profileAll = false;
             }
 
             void initialize();
@@ -36,6 +37,8 @@ namespace s2e {
             void functionRetMonitor(S2EExecutionState *state);
             void functionForEach(S2EExecutionState *state);
             void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
+            void onException(S2EExecutionState* state, unsigned exception_idx, uint64_t pc);
+            void onSyscall(S2EExecutionState* state, uint64_t pc, uint32_t sysc_number);
         };
 
     } // namespace plugins
