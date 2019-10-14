@@ -58,6 +58,7 @@ public:
     }
 
     void initialize();
+    int getLibraryCall(S2EExecutionState *state);
 
     /// Emitted on an external library function call.
     sigc::signal<void, S2EExecutionState *, /* The current execution state */
@@ -83,6 +84,7 @@ private:
     void onTranslateBlockEnd(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc,
                              bool isStatic, uint64_t staticTarget);
     void onIndirectCallOrJump(S2EExecutionState *state, uint64_t pc, unsigned sourceType);
+
 };
 
 } // namespace plugins
