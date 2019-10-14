@@ -34,7 +34,9 @@ class LibraryCallMonitorState : public PluginState {
     std::unordered_map<uint64_t, ExportMap> m_map;
 
 public:
+    int syscall_count;
     LibraryCallMonitorState() {
+        syscall_count = 0;
     }
 
     virtual ~LibraryCallMonitorState() {
@@ -47,6 +49,8 @@ public:
     static PluginState *factory(Plugin *p, S2EExecutionState *s) {
         return new LibraryCallMonitorState();
     }
+
+
 
     bool get(uint64_t pid, uint64_t address, std::string &exportName) const {
         auto it = m_map.find(pid);
@@ -123,7 +127,7 @@ void LibraryCallMonitor::logLibraryCall(S2EExecutionState *state, const std::str
                                         unsigned sourceType, const std::string &calleeMod, const std::string &function,
                                         uint64_t pid) const {
     std::string sourceTypeDesc = (sourceType == TB_CALL_IND) ? " called " : " jumped to ";
-
+    getInfoStream(state) << "hehehe" << hexval(pc) << "\n";
     getInfoStream(state) << callerMod << "@" << hexval(pc) << sourceTypeDesc << calleeMod << "!" << function
                          << " (pid=" << hexval(pid) << ")\n";
 }
@@ -165,6 +169,7 @@ void LibraryCallMonitor::onIndirectCallOrJump(S2EExecutionState *state, uint64_t
 
     DECLARE_PLUGINSTATE(LibraryCallMonitorState, state);
 
+    plgState->syscall_count++;
     std::string exportName;
     if (!plgState->get(mod->Pid, targetAddr, exportName)) {
         vmi::Exports exps;
@@ -196,10 +201,15 @@ void LibraryCallMonitor::onIndirectCallOrJump(S2EExecutionState *state, uint64_t
     if (exportName.size() == 0) {
         return;
     }
-
     logLibraryCall(state, mod->Name, pc, sourceType, mod->Name, exportName, mod->Pid);
     onLibraryCall.emit(state, *mod, targetAddr);
+
 }
+
+    int LibraryCallMonitor::getLibraryCall(S2EExecutionState *state)  {
+        DECLARE_PLUGINSTATE(LibraryCallMonitorState, state);
+        return  plgState->syscall_count;
+    }
 
 } // namespace plugins
 } // namespace s2e

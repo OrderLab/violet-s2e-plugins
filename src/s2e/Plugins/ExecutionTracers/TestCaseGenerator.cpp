@@ -160,26 +160,26 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
 
     //Violet change: Add the score when generating the test case
-    /*
+
     Plugin *plugin;
-    InstructionTracker *iface = nullptr;
-    plugin = s2e()->getPlugin("InstructionTracker");
+    LatencyTracker *iface = nullptr;
+    plugin = s2e()->getPlugin("LatencyTracker");
     if (!plugin) {
-        getWarningsStream(state) << "ERROR: InstructionTracker could not find plugin " << "\n";
+        getWarningsStream(state) << "ERROR: LatencyTracker could not find plugin " << "\n";
         getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
     } else {
-        iface = dynamic_cast<InstructionTracker *>(plugin);
+        iface = dynamic_cast<LatencyTracker *>(plugin);
 
         if (!iface) {
-            getWarningsStream(state) << "ERROR: InstructionTracker is not an instance of IPluginInvoker\n";
+            getWarningsStream(state) << "ERROR: LatencyTracker is not an instance of IPluginInvoker\n";
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
         } else {
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) <<
-            "; the score is "<< iface->getScore(state) <<'\n';
+            "; the number of instruction is "<< iface->getScore(state) <<"; the number of syscall is " << iface->getSyscall(state) <<'\n';
             iface->functionForEach(state);
         }
     }
-*/
+
     ConcreteInputs inputs;
     bool success = state->getSymbolicSolution(inputs);
 
