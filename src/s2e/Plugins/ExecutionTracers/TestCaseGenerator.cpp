@@ -175,7 +175,7 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
         } else {
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) <<
-            "; the number of instruction is "<< iface->getScore(state) <<"; the number of syscall is " << iface->getSyscall(state) <<'\n';
+            "; the number of instruction "<< iface->getScore(state) <<"; the number of syscall " << iface->getSyscall(state) <<";\n";
            // iface->functionForEach(state);
         }
     }

@@ -204,11 +204,11 @@ namespace s2e {
                     plgState->callList.erase(key);
 
                     if (std::get<0>(record)) {
-                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs -1 ms\n";
+                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << "; runs 0ms\n";
                     } else {
-                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                             << hexval(std::get<0>(record)) << " runs -1 ms\n";
+                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                             << hexval(std::get<0>(record)) << "; runs 0ms;\n";
                     }
                     plgState->keyStack.pop_back();
                     key = plgState->keyStack.back();
@@ -220,11 +220,11 @@ namespace s2e {
                 double execution_time = double (end - std::get<2>(record))/(CLOCKS_PER_SEC/1000);
 
                 if (std::get<0>(record)) {
-                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                         << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
+                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                         << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << "; runs " << execution_time << "ms\n";
                 } else {
-                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                         << hexval(std::get<0>(record)) << " runs " << execution_time << "ms\n";
+                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                         << hexval(std::get<0>(record)) << "; runs " << execution_time << "ms\n";
                 }
                 plgState->keyStack.pop_back();
             }
