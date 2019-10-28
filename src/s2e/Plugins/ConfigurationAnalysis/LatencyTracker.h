@@ -115,13 +115,13 @@ namespace s2e {
 
             void functionStart(uint64_t addr,uint64_t returnAddress) {
                 clock_t begin = clock();
-                uint64_t callerRecord;
+                uint64_t callerKey;
                 if (callList.empty()) {
                     callList[returnAddress]=std::make_tuple(0,addr,begin);
                     keyStack.push_back(returnAddress);
                 } else {
-                    callerRecord = keyStack.back();
-                    callList[returnAddress] = std::make_tuple(std::get<1>(callList[callerRecord]),addr,begin);
+                    callerKey = keyStack.back();
+                    callList[returnAddress] = std::make_tuple(std::get<1>(callList[callerKey]),addr,begin);
                     keyStack.push_back(returnAddress);
                 }
             }

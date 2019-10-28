@@ -9,6 +9,7 @@
 #include "s2e/Plugins/ExecutionMonitors/LibraryCallMonitor.h"
 #include "LatencyTracker.h"
 #include <stack>
+#include <assert.h>
 
 
 using namespace std;
@@ -172,6 +173,9 @@ namespace s2e {
                 // Read the return address of the function call
                 uint64_t esp;
                 uint64_t returnAddress;
+                uint64_t key;
+                std::tuple<uint64_t,uint64_t,clock_t> record;
+                clock_t end;
                 bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
                 if (!ok) {
                     getWarningsStream(state) << "Function call with symbolic ESP!\n"
@@ -192,25 +196,37 @@ namespace s2e {
                     return;
                 }
 
-                for(uint64_t key = plgState->keyStack.back(); key != returnAddress;) {
-                    std::tuple<uint64_t,uint64_t,clock_t> record = plgState->callList[key];
-                    plgState->callList.erase(key);
+                assert(plgState->callList.count(returnAddress) == 1);
 
-                    clock_t end = clock();
-                    double execution_time = double (end - std::get<2>(record))/(CLOCKS_PER_SEC/1000);
+                key = plgState->keyStack.back();
+                while(key != returnAddress) {
+                    record = plgState->callList[key];
+                    plgState->callList.erase(key);
 
                     if (std::get<0>(record)) {
                         getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
+                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs -1 ms\n";
                     } else {
                         getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
-                                             << hexval(std::get<0>(record)) << " runs " << execution_time << "ms\n";
+                                             << hexval(std::get<0>(record)) << " runs -1 ms\n";
                     }
                     plgState->keyStack.pop_back();
                     key = plgState->keyStack.back();
-
                 }
 
+                record = plgState->callList[key];
+                plgState->callList.erase(key);
+                end = clock();
+                double execution_time = double (end - std::get<2>(record))/(CLOCKS_PER_SEC/1000);
+
+                if (std::get<0>(record)) {
+                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
+                                         << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
+                } else {
+                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
+                                         << hexval(std::get<0>(record)) << " runs " << execution_time << "ms\n";
+                }
+                plgState->keyStack.pop_back();
             }
         }
 /*
