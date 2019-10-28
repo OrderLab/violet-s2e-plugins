@@ -131,7 +131,7 @@ void BaseLinuxMonitor::handleModuleLoad(S2EExecutionState *state, uint64_t pid,
             } else {
                 getInfoStream(state) << "Sending Entry point\n";
                 ifaceLatency->setEntryPoint(state, modLoad.entry_point);
-              //  ifaceInstruction->setEntryPoint(state, modLoad.entry_point);
+              //  ifaceInstruction->setEntryPoint(state, modLoad.loadEntry);
             }
         }
     }

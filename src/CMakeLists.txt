@@ -126,8 +126,9 @@ add_library(
     s2e/Plugins/Lua/LuaCoreEvents.cpp
 
     #Viotlet
-        s2e/Plugins/ConfigurationAnalysis/LatencyTracker.cpp
-        ${PROTO_SRCS} ${PROTO_HDRS}
+    s2e/Plugins/ConfigurationAnalysis/LatencyTracker.cpp
+
+     ${PROTO_SRCS} ${PROTO_HDRS}
 )
 
 

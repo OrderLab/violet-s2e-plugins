@@ -18,7 +18,7 @@
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Utils.h>
-#include "s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h"
+#include "s2e/Plugins/InstructionTracker.h"
 
 #include <TraceEntries.pb.h>
 
@@ -176,7 +176,7 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
         } else {
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) <<
             "; the number of instruction is "<< iface->getScore(state) <<"; the number of syscall is " << iface->getSyscall(state) <<'\n';
-            iface->functionForEach(state);
+           // iface->functionForEach(state);
         }
     }
 

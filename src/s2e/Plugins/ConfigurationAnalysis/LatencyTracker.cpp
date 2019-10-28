@@ -8,109 +8,36 @@
 #include <s2e/Plugins/OSMonitors/Support/MemUtils.h>
 #include "s2e/Plugins/ExecutionMonitors/LibraryCallMonitor.h"
 #include "LatencyTracker.h"
-#include <list>
 #include <stack>
-#include <ctime>
+
+
 using namespace std;
 namespace s2e {
     namespace plugins {
-        class LatencyTrackerState : public PluginState{
-        private:
-            int m_count;
-            uint64_t entry_point;
-            bool regiesterd;
-            stack<pair<uint64_t,clock_t>> call_list;
 
-        public:
-            list<pair<uint64_t,double>> call_latency;
-            int syscall_count;
-            bool test_flag;
-            clock_t begin ;
-            LatencyTrackerState() {
-                m_count = 0;
-                syscall_count = 0;
-                entry_point = 0;
-                regiesterd = false;
-                test_flag = false;
-            }
-
-            virtual ~LatencyTrackerState() {}
-
-            static PluginState *factory(Plugin*, S2EExecutionState*) {
-                return new LatencyTrackerState();
-            }
-
-            LatencyTrackerState *clone() const {
-                return new LatencyTrackerState(*this);
-            }
-
-            void increment() {
-                ++m_count;
-            }
-
-            int getScore() {
-                return m_count;
-            }
-
-            void setEntryPoint(uint64_t EntryPoint){
-                entry_point = EntryPoint;
-            }
-
-            uint64_t getEntryPoint() {
-                return entry_point;
-            }
-
-            void setRegState(bool state) {
-                regiesterd = state;
-            }
-            bool getRegState() {
-                return regiesterd;
-            }
-
-            void functionStart(uint64_t addr) {
-                clock_t begin = clock();
-                call_list.push(make_pair(addr,begin));
-            }
-
-            bool functionEnd() {
-                if (call_list.empty()) {
-                    return false;
-                }
-                pair<uint64_t,clock_t> temp = call_list.top();
-                call_list.pop();
-                clock_t end = clock();
-                call_latency.push_back(make_pair(temp.first,double(end - temp.second) / (CLOCKS_PER_SEC/1000)));
-                return true;
-            }
-
-        };
         // Define a plugin whose class is LatencyTracker and called "LatencyTracker"
         S2E_DEFINE_PLUGIN(LatencyTracker,                   // Plugin class
-        "Tutorial - Tracking instructions",   // Description
-        "LatencyTracker",                 // Plugin function name
-        // Plugin dependencies would normally go here. However this plugin does not have any dependencies
+                          "Tutorial - Tracking instructions",   // Description
+                          "LatencyTracker",                 // Plugin function name
         );
 
         void LatencyTracker::initialize() {
-            m_address = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".addressToTrack");
             is_profileAll = s2e()->getConfig()->getBool(getConfigKey() + ".profileAllFunction");
+            traceSyscall = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
+            traceInstruction = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstruction");
+            entryAddress = (uint64_t)s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
 
-            is_traceSyscall = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
-            // This indicates that our plugin is interested in monitoring instruction translation.
-            // For this, the plugin registers a callback with the onTranslateInstruction signal.
             s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
                     sigc::mem_fun(*this, &LatencyTracker::onTranslateInstruction));
-
-            if (is_traceSyscall) {
+            if (traceSyscall) {
                 s2e()->getCorePlugin()->onTranslateSoftInterruptStart.connect (sigc::mem_fun(*this, &LatencyTracker::onException));
                 s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(sigc::mem_fun(*this, &LatencyTracker::onTranslateSpecialInstructionEnd));
             }
         }
 
-        void LatencyTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb, uint64_t pc, special_instruction_t type){
-
+        void LatencyTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,
+                TranslationBlock *tb, uint64_t pc, special_instruction_t type){
             if (type == SYSENTER || type == SYSCALL) {
-                //s2e()->getDebugStream() << "Syscall " << hexval(pc) << " from the sysenter "<<"\n";
                 signal->connect(sigc::mem_fun(*this, &LatencyTracker::onSysenter));
             }
         }
@@ -127,93 +54,28 @@ namespace s2e {
         }
 
         void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
-                                                        S2EExecutionState *state,
-                                                        TranslationBlock *tb,
-                                                        uint64_t pc) {
+                                                    S2EExecutionState *state,
+                                                    TranslationBlock *tb,
+                                                    uint64_t pc) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
             uint64_t entryPoint = plgState->getEntryPoint();
 
-            if(entryPoint) {
-                // When we find an interesting address, ask S2E to invoke our callback when the address is actually
-                // executed
+            if(entryPoint && traceInstruction) {
                 signal->connect(sigc::mem_fun(*this, &LatencyTracker::onInstructionExecution));
             }
 
-            /*
+
             if(is_profileAll) {
-                // When s2e starts at the entry of our module, we begin to analyse function
-                m_monitor = s2e()->getPlugin<FunctionMonitor>();
                 if(plgState->getRegState()) {
                     return;
                 }
+                // When s2e starts at the entry of our module, we begin to analyse function
+                m_monitor = s2e()->getPlugin<FunctionMonitor>();
                 callSignal = m_monitor->getCallSignal(state, -1, -1);
                 callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
-
                 plgState->setRegState(true);
             }
-             */
-        }
 
-        void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
-            // This macro declares the plgState variable of type InstructionTrackerState.
-            // It automatically takes care of retrieving the right plugin state attached to the specified execution state
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-
-            // Increment the count
-            plgState->increment();
-        }
-
-
-        void LatencyTracker::onSysenter(S2EExecutionState* state, uint64_t pc) {
-
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            plgState->syscall_count++;
-        }
-
-        void LatencyTracker::onSyscall (S2EExecutionState* state, uint64_t pc, uint32_t sysc_number) {
-            DECLARE_PLUGINSTATE (LatencyTrackerState, state);
-            plgState->syscall_count++;
-            //uint64_t pid = state->getGuid();
-            //s2e()->getDebugStream() << "Syscall " << hexval(pc) << " the id is "<< pid<<"\n";
-            return;
-        }
-
-        void LatencyTracker::functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms) {
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            uint64_t addr = state->regs()->getPc();
-            plgState->functionStart(addr);
-
-            FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
-
-        }
-
-        void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            if (!plgState->functionEnd()){
-                getDebugStream(state) << "No Caller\n";
-            }
-        }
-
-
-        int LatencyTracker::getScore(S2EExecutionState *state) {
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            return  plgState->getScore();
-        }
-
-        int LatencyTracker::getLibraryCall (S2EExecutionState* state, const s2e::ModuleDescriptor& module, uint64_t pc) {
-            LibraryCallMonitor *tracker = s2e()->getPlugin<LibraryCallMonitor>();
-            return tracker->getLibraryCall(state);
-        }
-
-        int LatencyTracker::getSyscall(S2EExecutionState *state)  {
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            return plgState->syscall_count;
-        }
-
-        void LatencyTracker::functionForEach(S2EExecutionState *state) {
-            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            for (auto iterator = plgState->call_latency.begin(); iterator != plgState->call_latency.end(); ++iterator)
-                getInfoStream(state) << "Function " << hexval(iterator->first-plgState->getEntryPoint()+m_address) <<" runs " << iterator->second << "ms\n";
         }
 
         void LatencyTracker::setEntryPoint(S2EExecutionState *state,uint64_t entry_point) {
@@ -222,32 +84,176 @@ namespace s2e {
             return  plgState->setEntryPoint(entry_point);
         }
 
-
+        /*Instrument the start point and end point of function tracer*/
         void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize) {
+            enum_track_command command;
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            m_monitor = s2e()->getPlugin<FunctionMonitor>();
-            if(plgState->getRegState())
-                return;
-            callSignal = m_monitor->getCallSignal(state, -1, -1);
-            callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
 
-            plgState->setRegState(true);
-        }
-
-        /*
-        void InstructionTracker::registerFunctionProfiler(S2EExecutionState *state) {
-            DECLARE_PLUGINSTATE(InstructionTrackerState, state);
-
-            m_monitor = s2e()->getPlugin<FunctionMonitor>();
-            if(plgState->getRegState()) {
+            if (is_profileAll) {
                 return;
             }
-            callSignal = m_monitor->getCallSignal(state, -1, -1);
-            callSignal->connect(sigc::mem_fun(*this, &InstructionTracker::functionCallMonitor));
 
-            plgState->setRegState(true);
+            if (guestDataSize != sizeof(command)) {
+                getWarningsStream(state) << "mismatched S2E_MODULE_MAP_COMMAND size\n";
+                exit(-1);
+            }
+
+            if (!state->mem()->read(guestDataPtr, &command, guestDataSize)) {
+                getWarningsStream(state) << "could not read transmitted data\n";
+                exit(-1);
+            }
+            switch (command) {
+                case TRACK_START:
+                    m_monitor = s2e()->getPlugin<FunctionMonitor>();
+                    plgState->traceFunction = true;
+                    plgState->rootid++;
+                    if(plgState->getRegState())
+                        return;
+                    callSignal = m_monitor->getCallSignal(state, -1, -1);
+                    callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
+                    plgState->setRegState(true);
+                    break;
+                case TRACK_END:
+                    plgState->traceFunction = false;
+//                    clock_t end = clock();
+//                    while (!plgState->call_list.empty()) {
+//                        std::tuple<uint64_t,uint64_t,uint64_t,clock_t> record = plgState->call_list.top();
+//                        plgState->call_list.pop();
+//                        double execution_time = double (end - std::get<3>(record))/(CLOCKS_PER_SEC/1000);
+//                        if (std::get<1>(record)) {
+//                            getInfoStream(state) << "Function " << hexval(std::get<2>(record)-plgState->getEntryPoint()+entryAddress) << ", root: "
+//                                                 << hexval(std::get<0>(record)) <<", caller: "
+//                                                 << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
+//                        } else {
+//                            getInfoStream(state) << "Function " << hexval(std::get<2>(record)-plgState->getEntryPoint()+entryAddress) << ", root: "
+//                                                 << hexval(std::get<0>(record)) <<", caller: "
+//                                                 << hexval(std::get<1>(record)) << " runs " << execution_time << "ms\n";
+//                        }
+//                    }
+                    break;
+            }
         }
-*/
+
+        void LatencyTracker::functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            if (is_profileAll || plgState->traceFunction) {
+//                plgState->incrementInstructionCount();
+                uint64_t addr = state->regs()->getPc();
+
+                // Read the return address of the function call
+                uint64_t esp;
+                uint64_t returnAddress;
+                bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic ESP!\n"
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
+                ok = state->mem()->read(esp,&returnAddress, sizeof returnAddress);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic memory!\n"
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
+                plgState->functionStart(addr,returnAddress);
+
+                FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
+            }
+        }
+
+        void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+//            plgState->syscallCount++;
+            if (plgState->callList.empty()){
+                getDebugStream(state) << "No Caller\n";
+            } else {
+                // Read the return address of the function call
+                uint64_t esp;
+                uint64_t returnAddress;
+                bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic ESP!\n"
+                                                       << "  EIP=" << hexval(state->regs()->getPc())
+                                                       << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
+
+                ok = state->mem()->read(esp,&returnAddress, sizeof returnAddress);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic memory!\n"
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
+
+                if (!plgState->callList.count(returnAddress)) {
+                    return;
+                }
+
+                for(uint64_t key = plgState->keyStack.back(); key != returnAddress;) {
+                    std::tuple<uint64_t,uint64_t,clock_t> record = plgState->callList[key];
+                    plgState->callList.erase(key);
+
+                    clock_t end = clock();
+                    double execution_time = double (end - std::get<2>(record))/(CLOCKS_PER_SEC/1000);
+
+                    if (std::get<0>(record)) {
+                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
+                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
+                    } else {
+                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<", caller: "
+                                             << hexval(std::get<0>(record)) << " runs " << execution_time << "ms\n";
+                    }
+                    plgState->keyStack.pop_back();
+                    key = plgState->keyStack.back();
+
+                }
+
+            }
+        }
+/*
+        void LatencyTracker::functionForEach(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            for (auto iterator = plgState->call_latency.begin(); iterator != plgState->call_latency.end(); ++iterator)
+                if (std::get<1>(*iterator)) {
+                    getInfoStream(state) << "Function " << hexval(std::get<2>(*iterator)-plgState->getEntryPoint()+entryAddress) << ", root: "
+                                        << hexval(std::get<0>(*iterator)) <<", caller: "
+                                        << hexval(std::get<1>(*iterator)-plgState->getEntryPoint()+entryAddress) << " runs " << std::get<3>(*iterator) << "ms" "\n";
+                } else {
+                    getInfoStream(state) << "Function " << hexval(std::get<2>(*iterator)-plgState->getEntryPoint()+entryAddress) << ", root: "
+                                         << hexval(std::get<0>(*iterator)) <<", caller: "
+                                         << hexval(std::get<1>(*iterator)) << " runs " << std::get<3>(*iterator) << "ms" "\n";
+                }
+
+        }*/
+
+        void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            plgState->incrementInstructionCount();
+        }
+
+        void LatencyTracker::onSysenter(S2EExecutionState* state, uint64_t pc) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            plgState->syscallCount++;
+        }
+
+        void LatencyTracker::onSyscall(S2EExecutionState* state, uint64_t pc, uint32_t sysc_number) {
+            DECLARE_PLUGINSTATE (LatencyTrackerState, state);
+            plgState->syscallCount++;
+            return;
+        }
+
+        int LatencyTracker::getScore(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            return plgState->getInstructionCount();
+        }
+
+        int LatencyTracker::getSyscall(S2EExecutionState *state)  {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            return plgState->syscallCount;
+        }
 
     } // namespace plugins
 } // namespace s2e
