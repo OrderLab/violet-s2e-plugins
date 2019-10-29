@@ -20,6 +20,13 @@
 namespace s2e {
     namespace plugins {
 
+        struct FunctionRecord {
+            uint64_t function;
+            uint64_t caller;
+            double execution_time;
+            clock_t begin;
+        };
+
         class LatencyTracker : public Plugin, public IPluginInvoker {
             S2E_PLUGIN
         private:
@@ -50,13 +57,15 @@ namespace s2e {
             void setEntryPoint(S2EExecutionState *state,uint64_t entry_point);
             void functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms);
             void functionRetMonitor(S2EExecutionState *state);
-//            void functionForEach(S2EExecutionState *state);
+            void functionForEach(S2EExecutionState *state);
             void onSysenter(S2EExecutionState* state, uint64_t pc);
             void onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc, special_instruction_t type);
             void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
             void onException (ExecutionSignal* signal, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc, unsigned exception_idx);
             void onSyscall(S2EExecutionState* state, uint64_t pc, uint32_t sysc_number);
         };
+
+
 
         class LatencyTrackerState : public PluginState{
         private:
@@ -65,7 +74,7 @@ namespace s2e {
             bool regiesterd;
 
         public:
-            std::map<uint64_t, std::tuple<uint64_t,uint64_t,clock_t>> callList; //return_address,parent address, function address and execution time
+            std::map<uint64_t,  struct FunctionRecord> callList; //return_address,parent address, function address and execution time
             std::vector<uint64_t> keyStack;
             int syscallCount;
             bool traceFunction;
@@ -116,27 +125,53 @@ namespace s2e {
             void functionStart(uint64_t addr,uint64_t returnAddress) {
                 clock_t begin = clock();
                 uint64_t callerKey;
+                struct FunctionRecord record;
                 if (callList.empty()) {
-                    callList[returnAddress]=std::make_tuple(0,addr,begin);
+                    record.caller = 0;
+                    record.function = addr;
+                    record.begin = begin;
+                    record.execution_time = 0;
+                    callList[returnAddress] = record;
                     keyStack.push_back(returnAddress);
                 } else {
                     callerKey = keyStack.back();
-                    callList[returnAddress] = std::make_tuple(std::get<1>(callList[callerKey]),addr,begin);
+                    record.caller = callList[callerKey].function;
+                    record.function = addr;
+                    record.begin = begin;
+                    record.execution_time = 0;
+                    callList[returnAddress] = record;
                     keyStack.push_back(returnAddress);
                 }
             }
 
-//            bool functionEnd() {
-//                if (call_list.empty()) {
-//                    return false;
-//                }
-//                std::tuple<uint64_t,uint64_t,uint64_t,clock_t> record = call_list.top();
-//                call_list.pop();
-//                clock_t end = clock();
-//                double execution_time = double (end - std::get<3>(record))/(CLOCKS_PER_SEC/1000);
-//                call_latency.push(std::make_tuple(std::get<0>(record),std::get<1>(record),std::get<2>(record),execution_time));
-//                return true;
-//            }
+            void functionEnd(uint64_t returnAddress,clock_t end) {
+                uint64_t key;
+
+
+                if (keyStack.empty()) {
+                    return;
+                }
+
+                std::vector<uint64_t>::iterator it = std::find(keyStack.begin(), keyStack.end(), returnAddress);
+                if (it == keyStack.end()) {
+                    return;
+                }
+                assert(callList.count(returnAddress) == 1);
+
+                key = keyStack.back();
+                keyStack.pop_back();
+                while(key != returnAddress) {
+                    key = keyStack.back();
+                    keyStack.pop_back();
+                }
+
+                struct FunctionRecord &record = callList[key];
+                end = clock();
+                double execution = double (end - record.begin)/(CLOCKS_PER_SEC/1000);
+                record.execution_time = execution;
+
+                return;
+            }
 
         };
 

@@ -138,7 +138,7 @@ namespace s2e {
         void LatencyTracker::functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
             if (is_profileAll || plgState->traceFunction) {
-//                plgState->incrementInstructionCount();
+
                 uint64_t addr = state->regs()->getPc();
 
                 // Read the return address of the function call
@@ -166,16 +166,14 @@ namespace s2e {
 
         void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-//            plgState->syscallCount++;
-            if (plgState->callList.empty()){
+            clock_t end = clock();
+            if (plgState->keyStack.empty()){
                 getDebugStream(state) << "No Caller\n";
             } else {
                 // Read the return address of the function call
                 uint64_t esp;
                 uint64_t returnAddress;
-                uint64_t key;
-                std::tuple<uint64_t,uint64_t,clock_t> record;
-                clock_t end;
+
                 bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
                 if (!ok) {
                     getWarningsStream(state) << "Function call with symbolic ESP!\n"
@@ -192,58 +190,23 @@ namespace s2e {
                     return;
                 }
 
-                if (!plgState->callList.count(returnAddress)) {
-                    return;
-                }
-
-                assert(plgState->callList.count(returnAddress) == 1);
-
-                key = plgState->keyStack.back();
-                while(key != returnAddress) {
-                    record = plgState->callList[key];
-                    plgState->callList.erase(key);
-
-                    if (std::get<0>(record)) {
-                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                             << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << "; runs 0ms\n";
-                    } else {
-                        getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                             << hexval(std::get<0>(record)) << "; runs 0ms;\n";
-                    }
-                    plgState->keyStack.pop_back();
-                    key = plgState->keyStack.back();
-                }
-
-                record = plgState->callList[key];
-                plgState->callList.erase(key);
-                end = clock();
-                double execution_time = double (end - std::get<2>(record))/(CLOCKS_PER_SEC/1000);
-
-                if (std::get<0>(record)) {
-                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                         << hexval(std::get<0>(record)-plgState->getEntryPoint()+entryAddress) << "; runs " << execution_time << "ms\n";
-                } else {
-                    getInfoStream(state) << "Function " << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                         << hexval(std::get<0>(record)) << "; runs " << execution_time << "ms\n";
-                }
-                plgState->keyStack.pop_back();
+                plgState->functionEnd(returnAddress,end);
             }
         }
-/*
+
         void LatencyTracker::functionForEach(S2EExecutionState *state) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            for (auto iterator = plgState->call_latency.begin(); iterator != plgState->call_latency.end(); ++iterator)
-                if (std::get<1>(*iterator)) {
-                    getInfoStream(state) << "Function " << hexval(std::get<2>(*iterator)-plgState->getEntryPoint()+entryAddress) << ", root: "
-                                        << hexval(std::get<0>(*iterator)) <<", caller: "
-                                        << hexval(std::get<1>(*iterator)-plgState->getEntryPoint()+entryAddress) << " runs " << std::get<3>(*iterator) << "ms" "\n";
+            for (auto iterator = plgState->callList.begin(); iterator != plgState->callList.end(); ++iterator){
+                struct FunctionRecord record = iterator->second;
+                if (record.caller) {
+                    getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                         << hexval(record.caller-plgState->getEntryPoint()+entryAddress) << "; runs " << record.execution_time << "ms;\n";
                 } else {
-                    getInfoStream(state) << "Function " << hexval(std::get<2>(*iterator)-plgState->getEntryPoint()+entryAddress) << ", root: "
-                                         << hexval(std::get<0>(*iterator)) <<", caller: "
-                                         << hexval(std::get<1>(*iterator)) << " runs " << std::get<3>(*iterator) << "ms" "\n";
+                    getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                         << hexval(record.caller) << "; runs " << record.execution_time << "ms;\n";
                 }
-
-        }*/
+            }
+        }
 
         void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
