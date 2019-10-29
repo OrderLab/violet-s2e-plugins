@@ -116,21 +116,6 @@ namespace s2e {
                     break;
                 case TRACK_END:
                     plgState->traceFunction = false;
-//                    clock_t end = clock();
-//                    while (!plgState->call_list.empty()) {
-//                        std::tuple<uint64_t,uint64_t,uint64_t,clock_t> record = plgState->call_list.top();
-//                        plgState->call_list.pop();
-//                        double execution_time = double (end - std::get<3>(record))/(CLOCKS_PER_SEC/1000);
-//                        if (std::get<1>(record)) {
-//                            getInfoStream(state) << "Function " << hexval(std::get<2>(record)-plgState->getEntryPoint()+entryAddress) << ", root: "
-//                                                 << hexval(std::get<0>(record)) <<", caller: "
-//                                                 << hexval(std::get<1>(record)-plgState->getEntryPoint()+entryAddress) << " runs " << execution_time << "ms\n";
-//                        } else {
-//                            getInfoStream(state) << "Function " << hexval(std::get<2>(record)-plgState->getEntryPoint()+entryAddress) << ", root: "
-//                                                 << hexval(std::get<0>(record)) <<", caller: "
-//                                                 << hexval(std::get<1>(record)) << " runs " << execution_time << "ms\n";
-//                        }
-//                    }
                     break;
             }
         }
@@ -138,7 +123,6 @@ namespace s2e {
         void LatencyTracker::functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
             if (is_profileAll || plgState->traceFunction) {
-
                 uint64_t addr = state->regs()->getPc();
 
                 // Read the return address of the function call
