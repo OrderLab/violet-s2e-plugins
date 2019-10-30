@@ -108,7 +108,6 @@ namespace s2e {
                     m_monitor = s2e()->getPlugin<FunctionMonitor>();
                     plgState->traceFunction = true;
                     plgState->rootid++;
-                    getWarningsStream(state) << "Start tracing\n";
                     if(plgState->getRegState())
                         return;
                     callSignal = m_monitor->getCallSignal(state, -1, -1);
@@ -119,7 +118,8 @@ namespace s2e {
                     plgState->traceFunction = false;
                     plgState->callLists.push_back(plgState->callList);
                     plgState->callList.clear();
-                    getWarningsStream(state) << "end tracing\n";
+                    plgState->returnLists.push_back(plgState->returnList);
+                    plgState->returnList.clear();
                     break;
             }
         }
@@ -154,19 +154,19 @@ namespace s2e {
 
         void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            clock_t end = clock();
-            if (plgState->keyStack.empty()){
-                getDebugStream(state) << "No Caller\n";
-            } else {
+//            if (plgState->keyStack.empty()){
+//                getDebugStream(state) << "No Caller\n";
+//            } else {
                 // Read the return address of the function call
+            if (is_profileAll || plgState->traceFunction) {
                 uint64_t esp;
                 uint64_t returnAddress;
-
+                uint64_t addr = state->regs()->getPc();
                 bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
                 if (!ok) {
                     getWarningsStream(state) << "Function call with symbolic ESP!\n"
-                                                       << "  EIP=" << hexval(state->regs()->getPc())
-                                                       << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
                     return;
                 }
 
@@ -177,16 +177,56 @@ namespace s2e {
                                              << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
                     return;
                 }
-
-                plgState->functionEnd(returnAddress,end);
+                plgState->functionEnd(addr,returnAddress);
             }
+
+        }
+
+        void LatencyTracker::matchParent(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+
+            for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
+                for (auto callSignal = callList->begin(); callSignal != callList->end(); ++callSignal){
+                    for (auto it = callList->begin(); it != callList->end(); ++it){
+                        if (callSignal->first < it->second.functionEnd && callSignal->first >= it->second.function) {
+                            callSignal->second.caller = it->second.function;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        void LatencyTracker::calculateLatency(S2EExecutionState *state){
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+
+            for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
+                std::vector<struct returnRecord> returnList = plgState->returnLists.back();
+                plgState->returnLists.pop_back();
+                for (std::vector<struct returnRecord>::iterator returnSignal = returnList.begin(); returnSignal != returnList.end(); ++returnSignal){
+                    if (!callList->count(returnSignal->returnAddress))
+                        break;
+                    struct callRecord &record = (*callList)[returnSignal->returnAddress];
+                    record.execution_time = double (returnSignal->end - record.begin)/(CLOCKS_PER_SEC/1000);
+                    record.functionEnd = returnSignal->functionEnd;
+                }
+            }
+        }
+
+        void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
+            DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+            assert(plgState->callLists.size() == plgState->returnLists.size());
+
+            calculateLatency(state);
+            matchParent(state);
+            functionForEach(state);
         }
 
         void LatencyTracker::functionForEach(S2EExecutionState *state) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
             for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
                 for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator){
-                    struct FunctionRecord record = iterator->second;
+                    struct callRecord record = iterator->second;
                     if (record.caller) {
                         getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
                                              << hexval(record.caller-plgState->getEntryPoint()+entryAddress) << "; runs " << record.execution_time << "ms;\n";
