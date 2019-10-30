@@ -74,7 +74,8 @@ namespace s2e {
             bool regiesterd;
 
         public:
-            std::map<uint64_t,  struct FunctionRecord> callList; //return_address,parent address, function address and execution time
+            std::vector<std::map<uint64_t,  struct FunctionRecord>> callLists;
+            std::map<uint64_t,  struct FunctionRecord> callList;
             std::vector<uint64_t> keyStack;
             int syscallCount;
             bool traceFunction;
@@ -126,7 +127,7 @@ namespace s2e {
                 clock_t begin = clock();
                 uint64_t callerKey;
                 struct FunctionRecord record;
-                if (callList.empty()) {
+                if (keyStack.empty()) {
                     record.caller = 0;
                     record.function = addr;
                     record.begin = begin;
@@ -147,7 +148,6 @@ namespace s2e {
             void functionEnd(uint64_t returnAddress,clock_t end) {
                 uint64_t key;
 
-
                 if (keyStack.empty()) {
                     return;
                 }
@@ -156,7 +156,7 @@ namespace s2e {
                 if (it == keyStack.end()) {
                     return;
                 }
-                assert(callList.count(returnAddress) == 1);
+                assert(callList.count(returnAddress) == 1 || callList.count(returnAddress) == 0);
 
                 key = keyStack.back();
                 keyStack.pop_back();

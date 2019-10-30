@@ -108,6 +108,7 @@ namespace s2e {
                     m_monitor = s2e()->getPlugin<FunctionMonitor>();
                     plgState->traceFunction = true;
                     plgState->rootid++;
+                    getWarningsStream(state) << "Start tracing\n";
                     if(plgState->getRegState())
                         return;
                     callSignal = m_monitor->getCallSignal(state, -1, -1);
@@ -116,6 +117,9 @@ namespace s2e {
                     break;
                 case TRACK_END:
                     plgState->traceFunction = false;
+                    plgState->callLists.push_back(plgState->callList);
+                    plgState->callList.clear();
+                    getWarningsStream(state) << "end tracing\n";
                     break;
             }
         }
@@ -180,16 +184,19 @@ namespace s2e {
 
         void LatencyTracker::functionForEach(S2EExecutionState *state) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            for (auto iterator = plgState->callList.begin(); iterator != plgState->callList.end(); ++iterator){
-                struct FunctionRecord record = iterator->second;
-                if (record.caller) {
-                    getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                         << hexval(record.caller-plgState->getEntryPoint()+entryAddress) << "; runs " << record.execution_time << "ms;\n";
-                } else {
-                    getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
-                                         << hexval(record.caller) << "; runs " << record.execution_time << "ms;\n";
+            for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
+                for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator){
+                    struct FunctionRecord record = iterator->second;
+                    if (record.caller) {
+                        getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                             << hexval(record.caller-plgState->getEntryPoint()+entryAddress) << "; runs " << record.execution_time << "ms;\n";
+                    } else {
+                        getInfoStream(state) << "Function " << hexval(record.function-plgState->getEntryPoint()+entryAddress)  <<"; caller: "
+                                             << hexval(record.caller) << "; runs " << record.execution_time << "ms;\n";
+                    }
                 }
             }
+
         }
 
         void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
