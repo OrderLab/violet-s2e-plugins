@@ -168,26 +168,24 @@ namespace s2e {
                 uint64_t returnAddress;
                 clock_t begin = clock();
                 uint64_t addr = state->regs()->getPc();
+                bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic ESP!\n"
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
 
-                    plgState->insertFlag = false;
-                    bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
-                    if (!ok) {
-                        getWarningsStream(state) << "Function call with symbolic ESP!\n"
-                                                 << "  EIP=" << hexval(state->regs()->getPc())
-                                                 << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
-                        return;
-                    }
-
-                    ok = state->mem()->read(esp,&returnAddress, sizeof returnAddress);
-                    if (!ok) {
-                        getWarningsStream(state) << "Function call with symbolic memory!\n"
-                                                 << "  EIP=" << hexval(state->regs()->getPc())
-                                                 << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
-                        return;
-                    }
-                    double execution_time = double (clock() - begin)/(CLOCKS_PER_SEC/1000);
-                    plgState->latencyList.push_back(execution_time);
-                    plgState->functionEnd(addr,returnAddress);
+                ok = state->mem()->read(esp,&returnAddress, sizeof returnAddress);
+                if (!ok) {
+                    getWarningsStream(state) << "Function call with symbolic memory!\n"
+                                             << "  EIP=" << hexval(state->regs()->getPc())
+                                             << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
+                    return;
+                }
+                double execution_time = double (clock() - begin)/(CLOCKS_PER_SEC/1000);
+                plgState->latencyList.push_back(execution_time);
+                plgState->functionEnd(addr,returnAddress);
             }
         }
 
@@ -238,7 +236,6 @@ namespace s2e {
 
             }
             getInfoStream(state) << "avg latency is " << avg_latency  <<"ms\n";
-            getInfoStream(state) << "the number of insert child function is " << plgState->insertChild << "\n";
             functionForEach(state);
 
         }
