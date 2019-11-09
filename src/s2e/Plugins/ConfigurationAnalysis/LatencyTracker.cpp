@@ -72,6 +72,10 @@ namespace s2e {
                 }
                 // When s2e starts at the entry of our module, we begin to analyse function
                 m_monitor = s2e()->getPlugin<FunctionMonitor>();
+                if (!m_monitor) {
+                    getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
+                    return;
+                }
                 callSignal = m_monitor->getCallSignal(state, -1, -1);
                 callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
                 plgState->setRegState(true);
@@ -106,6 +110,10 @@ namespace s2e {
             switch (command) {
                 case TRACK_START:
                     m_monitor = s2e()->getPlugin<FunctionMonitor>();
+                    if (!m_monitor) {
+                        getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
+                        return;
+                    }
                     plgState->traceFunction = true;
                     plgState->rootid++;
                     if(plgState->getRegState())

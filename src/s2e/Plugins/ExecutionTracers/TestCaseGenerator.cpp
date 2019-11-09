@@ -158,9 +158,6 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 }
 
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
-
-    //Violet change: Add the score when generating the test case
-
     Plugin *plugin;
     LatencyTracker *iface = nullptr;
     plugin = s2e()->getPlugin("LatencyTracker");
