@@ -21,10 +21,12 @@ namespace s2e {
     namespace plugins {
 
         struct callRecord {
-            uint64_t function; // function starting address
-            uint64_t functionEnd;
-            uint64_t caller;    // caller's starting address
+            uint64_t address; // function starting address
+            uint64_t retAddress;
+            uint64_t callerAddress;    // caller's starting address
             double execution_time;
+            uint64_t acticityId; // unique id for each function call
+            uint64_t parentId;
             clock_t begin;
         };
 
@@ -87,13 +89,13 @@ namespace s2e {
             std::vector<std::map<uint64_t,  struct callRecord>> callLists;
             std::vector<std::vector<struct returnRecord>> returnLists;
             std::map<uint64_t,  struct callRecord> callList;
-//            std::map<uint64_t,  uint64_t> funtionList;
             std::vector<struct returnRecord> returnList;
-           // std::vector<uint64_t> keyStack;
+//            std::vector<uint64_t> keyStack;
             std::vector<double> latencyList;
             int syscallCount;
             bool traceFunction;
-            int rootid;
+            int roundId;
+            uint64_t activityId;
 
 
             LatencyTrackerState() {
@@ -102,7 +104,8 @@ namespace s2e {
                 loadEntry = 0;
                 regiesterd = false;
                 traceFunction = false;
-                rootid = 0;
+                roundId = 0;
+                activityId = 0;
             }
 
             virtual ~LatencyTrackerState() {}
@@ -140,13 +143,15 @@ namespace s2e {
 
             void functionStart(uint64_t addr,uint64_t returnAddress) {
                 struct callRecord record;
-                record.caller = 0;
-                record.function = addr;
+                record.callerAddress = 0;
+                record.address = addr;
                 record.begin = clock();
                 record.execution_time = 0;
-                record.functionEnd = addr;
-
+                record.retAddress = addr;
+                record.acticityId = activityId;
+                activityId++;
                 callList[returnAddress] = record;
+
             }
 
             void functionEnd(uint64_t functionEnd,uint64_t returnAddress) {
