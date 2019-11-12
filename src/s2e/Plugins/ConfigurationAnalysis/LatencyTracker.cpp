@@ -119,9 +119,14 @@ namespace s2e {
                         getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
                         return;
                     }
+                    if (!temp) {
+                        temp++;
+                        break;
+                    }
+                    getInfoStream(state) << "Tracing starting\n";
                     plgState->traceFunction = true;
                     plgState->roundId++;
-                    plgState->activityId = 0;
+
                     if (plgState->getRegState())
                         return;
                     callSignal = m_monitor->getCallSignal(state, -1, -1);
@@ -129,6 +134,8 @@ namespace s2e {
                     plgState->setRegState(true);
                     break;
                 case TRACK_END:
+                    plgState->activityId = 0;
+                    getInfoStream(state) << "Tracing end\n";
                     plgState->traceFunction = false;
                     if (!plgState->callList.empty()) {
                         plgState->callLists.push_back(plgState->callList);

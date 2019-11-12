@@ -45,6 +45,7 @@ namespace s2e {
             uint64_t entryAddress;
             FunctionMonitor* m_monitor;
             FunctionMonitor::CallSignal* callSignal;
+            int temp;
         public:
             enum enum_track_command {
                 TRACK_START,TRACK_END
@@ -55,6 +56,7 @@ namespace s2e {
                 is_profileAll = false;
                 traceSyscall = false;
                 traceInstruction = false;
+                temp = 0;
             }
 
             void initialize();
