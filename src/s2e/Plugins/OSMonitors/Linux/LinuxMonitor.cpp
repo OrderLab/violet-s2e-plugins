@@ -77,7 +77,7 @@ uint64_t LinuxMonitor::getTid(S2EExecutionState *state) {
     }
 
     target_ulong tid;
-    target_ulong tidAddress = m_currentTaskAddr + m_taskStructPidOffset;
+    target_ulong tidAddress = currentTask + m_taskStructPidOffset;
 
     if (!state->mem()->read(tidAddress, &tid, sizeof(tid))) {
         return -1;
@@ -106,7 +106,7 @@ void LinuxMonitor::handleSegfault(S2EExecutionState *state, const S2E_LINUXMON_C
 
     if (m_terminateOnSegfault) {
         getDebugStream(state) << "Terminating state: received segfault\n";
-        s2e()->getExecutor()->terminateStateEarly(*state, "Segfault");
+        s2e()->getExecutor()->terminateState(*state, "Segfault");
     }
 }
 
@@ -131,7 +131,7 @@ void LinuxMonitor::handleTrap(S2EExecutionState *state, const S2E_LINUXMON_COMMA
 
     if (m_terminateOnTrap) {
         getDebugStream(state) << "Terminating state: received trap\n";
-        s2e()->getExecutor()->terminateStateEarly(*state, "Trap");
+        s2e()->getExecutor()->terminateState(*state, "Trap");
     }
 }
 
