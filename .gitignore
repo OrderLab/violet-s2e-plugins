@@ -33,3 +33,7 @@
 
 #Clion
 .idea/
+
+cscope.*
+tags
+*.swp
