@@ -16,6 +16,7 @@
 #include <ctime>
 #include <list>
 #include <mutex>
+#include <s2e/Plugins/OSMonitors/OSMonitor.h>
 
 namespace s2e {
     namespace plugins {
@@ -43,7 +44,8 @@ namespace s2e {
             bool traceSyscall;
             bool traceInstruction;
             uint64_t entryAddress;
-            FunctionMonitor* m_monitor;
+            FunctionMonitor* functionMonitor;
+            OSMonitor* linuxMonitor;
             FunctionMonitor::CallSignal* callSignal;
             int temp;
         public:
@@ -98,6 +100,7 @@ namespace s2e {
             bool traceFunction;
             int roundId;
             uint64_t activityId;
+            uint64_t m_tid;
 
 
             LatencyTrackerState() {
