@@ -260,17 +260,19 @@ namespace s2e {
             calculateLatency(state);
             matchParent(state);
             double avg_latency = 0;
-            int count = 1;
+            int count = 0;
             while (!plgState->latencyList.empty()) {
                 double &latency = plgState->latencyList.back();
-                avg_latency = (avg_latency * count + latency) / double(count + 1);
+                avg_latency += latency; 
                 count++;
                 plgState->latencyList.pop_back();
 
             }
-            getInfoStream(state) << "avg latency is " << avg_latency << "ms\n";
+            if (count > 0) {
+              avg_latency /= (double) count;
+            }
+            getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
             functionForEach(state);
-
         }
 
         void LatencyTracker::functionForEach(S2EExecutionState *state) {
