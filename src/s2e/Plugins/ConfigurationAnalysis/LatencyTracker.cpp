@@ -10,6 +10,8 @@
 #include "LatencyTracker.h"
 #include <stack>
 #include <assert.h>
+#include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
+
 
 
 using namespace std;
@@ -75,12 +77,12 @@ namespace s2e {
                     return;
                 }
                 // When s2e starts at the entry of our module, we begin to analyse function
-                m_monitor = s2e()->getPlugin<FunctionMonitor>();
-                if (!m_monitor) {
+                functionMonitor = s2e()->getPlugin<FunctionMonitor>();
+                if (!functionMonitor) {
                     getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
                     return;
                 }
-                callSignal = m_monitor->getCallSignal(state, -1, -1);
+                callSignal = functionMonitor->getCallSignal(state, -1, -1);
                 callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
                 plgState->setRegState(true);
             }
@@ -114,8 +116,9 @@ namespace s2e {
             }
             switch (command) {
                 case TRACK_START:
-                    m_monitor = s2e()->getPlugin<FunctionMonitor>();
-                    if (!m_monitor) {
+                    functionMonitor = s2e()->getPlugin<FunctionMonitor>();
+                    linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
+                    if (!functionMonitor) {
                         getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
                         return;
                     }
@@ -123,18 +126,21 @@ namespace s2e {
                         temp++;
                         break;
                     }
-                    getInfoStream(state) << "Tracing starting\n";
+
                     plgState->traceFunction = true;
                     plgState->roundId++;
-
+                    plgState->m_tid = linuxMonitor->getTid(state);
+                    getInfoStream(state) << "Tracing starting\n";
                     if (plgState->getRegState())
                         return;
-                    callSignal = m_monitor->getCallSignal(state, -1, -1);
+
+                    callSignal = functionMonitor->getCallSignal(state, -1, -1);
                     callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
                     plgState->setRegState(true);
                     break;
                 case TRACK_END:
                     plgState->activityId = 0;
+                    plgState->m_tid = 0;
                     getInfoStream(state) << "Tracing end\n";
                     plgState->traceFunction = false;
                     if (!plgState->callList.empty()) {
@@ -152,7 +158,7 @@ namespace s2e {
 
         void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
             DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-            if (is_profileAll || plgState->traceFunction) {
+            if ((is_profileAll || plgState->traceFunction) && (linuxMonitor->getTid(state) == plgState->m_tid)) {
                 clock_t begin = clock();
                 uint64_t addr = state->regs()->getPc();
                 // Read the return address of the function call
@@ -177,7 +183,6 @@ namespace s2e {
                 plgState->functionStart(addr, returnAddress);
 
                 FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
-
 
             }
         }
