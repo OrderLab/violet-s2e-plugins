@@ -121,15 +121,15 @@ void BaseLinuxMonitor::handleModuleLoad(S2EExecutionState *state, uint64_t pid,
         //InstructionTracker *ifaceInstruction = nullptr;
         //Plugin *instruction_plugin = s2e()->getPlugin("InstructionTracker");
         if (!latency_plugin) {
-            getWarningsStream(state) << "ERROR: LatencyTracker could not find plugin " << "\n";
+            getWarningsStream(state) << "Could not find plugin LatencyTracker\n";
         } else {
             ifaceLatency = dynamic_cast<LatencyTracker *>(latency_plugin);
            // ifaceInstruction = dynamic_cast<InstructionTracker *>(instruction_plugin);
 
             if (!ifaceLatency ) {
-                getWarningsStream(state) << "ERROR: LatencyTracker is not an instance of IPluginInvoker\n";
+                getWarningsStream(state) << "LatencyTracker is not an instance of IPluginInvoker\n";
             } else {
-                getInfoStream(state) << "Sending Entry point\n";
+                getInfoStream(state) << "Sending Entry point to LatencyTracker\n";
                 ifaceLatency->setEntryPoint(state, modLoad.entry_point);
               //  ifaceInstruction->setEntryPoint(state, modLoad.loadEntry);
             }
