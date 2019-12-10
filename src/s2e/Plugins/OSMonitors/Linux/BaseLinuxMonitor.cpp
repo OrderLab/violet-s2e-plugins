@@ -110,31 +110,8 @@ void BaseLinuxMonitor::handleModuleLoad(S2EExecutionState *state, uint64_t pid,
     }
 
     auto module =
-        ModuleDescriptor::get(modulePath, moduleName, pid, state->regs()->getPageDir(), modLoad.entry_point, sections);
-
-    //Violet Change
-    if ((module.Name.compare("sample") == 0) || (module.Name.compare("mysqld") == 0) || (module.Name.compare("file_open") == 0)) {
-        //Violet change: Send the entry point to LatencyTracker
-        Plugin *latency_plugin;
-        LatencyTracker *ifaceLatency = nullptr;
-        latency_plugin = s2e()->getPlugin("LatencyTracker");
-        //InstructionTracker *ifaceInstruction = nullptr;
-        //Plugin *instruction_plugin = s2e()->getPlugin("InstructionTracker");
-        if (!latency_plugin) {
-            getWarningsStream(state) << "Could not find plugin LatencyTracker\n";
-        } else {
-            ifaceLatency = dynamic_cast<LatencyTracker *>(latency_plugin);
-           // ifaceInstruction = dynamic_cast<InstructionTracker *>(instruction_plugin);
-
-            if (!ifaceLatency ) {
-                getWarningsStream(state) << "LatencyTracker is not an instance of IPluginInvoker\n";
-            } else {
-                getInfoStream(state) << "Sending Entry point to LatencyTracker\n";
-                ifaceLatency->setEntryPoint(state, modLoad.entry_point);
-              //  ifaceInstruction->setEntryPoint(state, modLoad.loadEntry);
-            }
-        }
-    }
+        ModuleDescriptor::get(modulePath, moduleName, pid, state->regs()->getPageDir(),
+            modLoad.entry_point, modLoad.load_bias, sections);
     getDebugStream(state) << module << '\n';
 
     onModuleLoad.emit(state, module);
@@ -169,7 +146,7 @@ void BaseLinuxMonitor::loadKernelImage(S2EExecutionState *state, uint64_t kernel
         sections.push_back(sd);
     }
 
-    vmlinux = ModuleDescriptor::get(kernelName, kernelName, 0, 0, 0, sections);
+    vmlinux = ModuleDescriptor::get(kernelName, kernelName, 0, 0, 0, 0, sections);
 
     onModuleLoad.emit(state, vmlinux);
 }

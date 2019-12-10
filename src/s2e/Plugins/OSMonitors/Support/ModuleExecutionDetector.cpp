@@ -160,20 +160,18 @@ void ModuleExecutionDetector::moduleLoadListener(S2EExecutionState *state, const
         Plugin *latency_plugin;
         LatencyTracker *ifaceLatency = nullptr;
         latency_plugin = s2e()->getPlugin("LatencyTracker");
-        //InstructionTracker *ifaceInstruction = nullptr;
-        //Plugin *instruction_plugin = s2e()->getPlugin("InstructionTracker");
         if (!latency_plugin) {
             getWarningsStream(state) << "Could not find plugin LatencyTracker\n";
         } else {
             ifaceLatency = dynamic_cast<LatencyTracker *>(latency_plugin);
-           // ifaceInstruction = dynamic_cast<InstructionTracker *>(instruction_plugin);
             if (!ifaceLatency ) {
                 getWarningsStream(state) << "LatencyTracker is not an instance of IPluginInvoker\n";
             } else {
-                getInfoStream(state) << "Sending module '" << module.Name 
-                  << "'s entry point " <<  hexval(module.EntryPoint) << " to LatencyTracker\n";
-                ifaceLatency->setEntryPoint(state, module.EntryPoint);
-              // ifaceInstruction->setEntryPoint(state, modLoad.loadEntry);
+                getInfoStream(state) << "Sending module {" << module.Name 
+                  << "}'s entry point " << hexval(module.EntryPoint)
+                  << " with a load bias " << hexval(module.LoadBias)
+                  << " to LatencyTracker\n";
+                ifaceLatency->setEntryPoint(state, module.EntryPoint, module.LoadBias);
             }
         }
         /** VIOLET changes END **/

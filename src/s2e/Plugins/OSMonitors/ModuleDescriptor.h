@@ -70,6 +70,10 @@ struct ModuleDescriptor {
     // The entry point of the module
     uint64_t EntryPoint;
 
+    // The load bias applied to this module during loading (can be used
+    // to get the static entry point specified in the ELF).
+    uint64_t LoadBias;
+
     // PE checksum
     uint32_t Checksum;
 
@@ -143,7 +147,8 @@ struct ModuleDescriptor {
     static ModuleDescriptor get(const vmi::PEFile &bin, uint64_t as, uint64_t pid, const std::string &name,
                                 const std::string &path, uint64_t loadbase);
     static ModuleDescriptor get(const std::string &path, const std::string &name, uint64_t pid, uint64_t as,
-                                uint64_t entryPoint, const std::vector<SectionDescriptor> &mappedSections);
+                                uint64_t entryPoint, uint64_t loadBias,
+                                const std::vector<SectionDescriptor> &mappedSections);
 
     const SectionDescriptor *getSection(uint64_t RunTimeAddress) const {
         for (unsigned i = 0; i < Sections.size(); ++i) {

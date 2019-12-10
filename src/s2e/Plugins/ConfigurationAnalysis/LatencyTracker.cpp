@@ -27,6 +27,8 @@ void LatencyTracker::initialize() {
   is_profileAll = s2e()->getConfig()->getBool(getConfigKey() + ".profileAllFunction");
   traceSyscall = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
   traceInstruction = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstruction");
+  // entryAddress config is deprecated: now we can directly calculate the
+  // static entry address from the load bias
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
 
@@ -103,10 +105,12 @@ void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
 
 }
 
-void LatencyTracker::setEntryPoint(S2EExecutionState *state, uint64_t entry_point) {
+void LatencyTracker::setEntryPoint(S2EExecutionState *state,
+    uint64_t entry_point, uint64_t load_bias) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  getInfoStream(state) << "Set the entry point to " << hexval(entry_point) << '\n';
-  return plgState->setEntryPoint(entry_point);
+  getInfoStream(state) << "Set the entry point to " << hexval(entry_point)
+    << " with load bias " << hexval(load_bias) << "\n";
+  return plgState->setEntryPoint(entry_point, load_bias);
 }
 
 /*Instrument the start point and end point of function tracer*/
@@ -294,9 +298,11 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
   for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
     for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator) {
       if (printTrace) {
-        printCallRecord(state, plgState->getEntryPoint(), &(iterator->second));
+        // Originally, we calculate load_bias from plgState->getEntryPoint() - entryAddress
+        // Now, we directly use the load_bias from the kernel
+        printCallRecord(state, plgState->getLoadBias(), &(iterator->second));
       }
-      writeCallRecord(state, plgState->getEntryPoint(), &(iterator->second));
+      writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
     }
   }
 }
@@ -333,49 +339,49 @@ void LatencyTracker::flush() {
   }
 }
 
-void LatencyTracker::printCallRecord(S2EExecutionState *state, uint64_t entryPoint,
+void LatencyTracker::printCallRecord(S2EExecutionState *state, uint64_t loadBias,
     struct callRecord *record) {
   if (record->callerAddress) {
     getInfoStream(state) << "Function "
-      << hexval(record->address - entryPoint + entryAddress)
+      << hexval(record->address - loadBias)
       << "; activityId " << record->acticityId << "; caller "
-      << hexval(record->callerAddress - entryPoint + entryAddress)
+      << hexval(record->callerAddress - loadBias)
       << "; parentId " << record->parentId
       << "; runs " << record->execution_time << "ms;\n";
   } else {
     getInfoStream(state) << "Function "
-      << hexval(record->address - entryPoint + entryAddress)
+      << hexval(record->address - loadBias)
       << "; activityId " << record->acticityId << "; caller "
       << hexval(record->callerAddress) <<  "; parentId -1; runs " << record->execution_time
       << "ms;\n";
   }
 }
 
-bool LatencyTracker::writeCallRecord(S2EExecutionState *state, uint64_t entryPoint,
+bool LatencyTracker::writeCallRecord(S2EExecutionState *state, uint64_t loadBias,
     struct callRecord *record) {
-    assert(m_traceFile);
-    int state_id = 0;
-    if (state) {
-      state_id = state->getID();
-    } 
-    // always write state id first
-    if (fwrite(&state_id, sizeof(int), 1, m_traceFile) != 1) {
-      return false;
-    } 
-    uint64_t rawAddress = record->address;
-    if (entryPoint != 0) {
-      // only update the address is the entry point was set
-      record->address = rawAddress - entryPoint + entryAddress;
-    }
-    // the address written to the trace file will be based on the entry
-    // address in the ELF file, instead of the dynamic entry point.
-    if (fwrite(record, sizeof(callRecord), 1, m_traceFile) != 1) {
-      return false;
-    }
-    // restore the raw address.
-    // FIXME: maybe not really necessary to restore it...
-    record->address = rawAddress;
-    return true;
+  assert(m_traceFile);
+  int state_id = 0;
+  if (state) {
+    state_id = state->getID();
+  } 
+  // always write state id first
+  if (fwrite(&state_id, sizeof(int), 1, m_traceFile) != 1) {
+    return false;
+  } 
+  uint64_t rawAddress = record->address;
+  if (loadBias != 0) {
+    // only update the address is the entry point was set
+    record->address = rawAddress - loadBias;
+  }
+  // the address written to the trace file will be based on the entry
+  // address in the ELF file, instead of the dynamic entry point.
+  if (fwrite(record, sizeof(callRecord), 1, m_traceFile) != 1) {
+    return false;
+  }
+  // restore the raw address.
+  // FIXME: maybe not really necessary to restore it...
+  record->address = rawAddress;
+  return true;
 }
 
 LatencyTracker::~LatencyTracker() {

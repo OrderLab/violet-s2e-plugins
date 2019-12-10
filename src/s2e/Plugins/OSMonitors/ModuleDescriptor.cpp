@@ -44,7 +44,8 @@ ModuleDescriptor ModuleDescriptor::get(const vmi::PEFile &bin, uint64_t as, uint
 }
 
 ModuleDescriptor ModuleDescriptor::get(const std::string &path, const std::string &name, uint64_t pid, uint64_t as,
-                                       uint64_t entryPoint, const std::vector<SectionDescriptor> &mappedSections) {
+                                       uint64_t entryPoint, uint64_t loadBias,
+                                       const std::vector<SectionDescriptor> &mappedSections) {
     ModuleDescriptor ret;
 
     ret.AddressSpace = as;
@@ -52,6 +53,7 @@ ModuleDescriptor ModuleDescriptor::get(const std::string &path, const std::strin
     ret.Name = name;
     ret.Path = path;
     ret.EntryPoint = entryPoint;
+    ret.LoadBias = loadBias;
     ret.Checksum = 0;
     ret.Size = 0;
 

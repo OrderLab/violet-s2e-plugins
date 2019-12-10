@@ -47,6 +47,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     bool printTrace;
     bool traceSyscall;
     bool traceInstruction;
+    // @deprecated
     uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
     OSMonitor* linuxMonitor;
@@ -74,7 +75,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     int getScore(S2EExecutionState *state);
     int getCount(S2EExecutionState *state);
     int getSyscall(S2EExecutionState *state);
-    void setEntryPoint(S2EExecutionState *state,uint64_t entry_point);
+    void setEntryPoint(S2EExecutionState *state, uint64_t entry_point,
+        uint64_t load_bias=0);
     void functionCallMonitor(S2EExecutionState* state, FunctionMonitorState* fms);
     void functionRetMonitor(S2EExecutionState *state);
     void functionForEach(S2EExecutionState *state);
@@ -87,8 +89,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void matchParent(S2EExecutionState *state);
     void calculateLatency(S2EExecutionState *state);
 
-    void printCallRecord(S2EExecutionState *state, uint64_t entryPoint, struct callRecord *record);
-    bool writeCallRecord(S2EExecutionState *state, uint64_t entryPoint, struct callRecord *record);
+    void printCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
+    bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
     void flush();
 };
 
@@ -98,6 +100,7 @@ class LatencyTrackerState : public PluginState {
   private:
     int instructionCount;
     uint64_t loadEntry;
+    uint64_t loadBias;
     bool regiesterd;
 
   public:
@@ -118,6 +121,7 @@ class LatencyTrackerState : public PluginState {
       instructionCount = 0;
       syscallCount = 0;
       loadEntry = 0;
+      loadBias = 0;
       regiesterd = false;
       traceFunction = false;
       roundId = 0;
@@ -138,16 +142,21 @@ class LatencyTrackerState : public PluginState {
       ++instructionCount;
     }
 
-    int getInstructionCount() {
+    inline int getInstructionCount() {
       return instructionCount;
     }
 
-    void setEntryPoint(uint64_t EntryPoint){
-      loadEntry = EntryPoint;
+    void setEntryPoint(uint64_t entry_point, uint64_t load_bias){
+      loadEntry = entry_point;
+      loadBias = load_bias;
     }
 
-    uint64_t getEntryPoint() {
+    inline uint64_t getEntryPoint() {
       return loadEntry;
+    }
+
+    inline uint64_t getLoadBias() {
+      return loadBias;
     }
 
     void setRegState(bool state) {

@@ -17,8 +17,6 @@
 #include <s2e/Plugins/Core/Vmi.h>
 #include <s2e/Plugins/OSMonitors/ModuleDescriptor.h>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
-#include "s2e/Plugins/ConfigurationAnalysis/LatencyTracker.h"
-#include "s2e/Plugins/InstructionTracker.h"
 
 #include <map>
 #include <sstream>
