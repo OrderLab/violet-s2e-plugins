@@ -17,6 +17,9 @@
 #include <s2e/Plugins/OSMonitors/ModuleDescriptor.h>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
 #include <s2e/Plugins/OSMonitors/Support/ModuleExecutionDetector.h>
+#include <s2e/Plugins/ConfigurationAnalysis/LatencyTracker.h>
+#include <s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h>
+
 #include <s2e/Utils.h>
 #include <s2e/s2e_libcpu.h>
 
@@ -143,6 +146,37 @@ void ModuleExecutionDetector::moduleLoadListener(S2EExecutionState *state, const
     if (it != byName.end()) {
         getInfoStream(state) << "loading id " << it->id << "\n";
         onModuleLoad.emit(state, module);
+
+        /** VIOLET changes BEGIN **/
+        // Send the entry point to LatencyTracker
+        // Since the ModuleExecutionDetector plugin by default has the name of
+        // the main module we are interested in its config, we can send the
+        // entry point without filtering the module names. This saves us
+        // from adding a new config in the violet plugin and checking that.
+        //
+        // FIXME: a better way is to have the violet plugin register for module 
+        // load signal and filter it by module name.
+        //
+        Plugin *latency_plugin;
+        LatencyTracker *ifaceLatency = nullptr;
+        latency_plugin = s2e()->getPlugin("LatencyTracker");
+        //InstructionTracker *ifaceInstruction = nullptr;
+        //Plugin *instruction_plugin = s2e()->getPlugin("InstructionTracker");
+        if (!latency_plugin) {
+            getWarningsStream(state) << "Could not find plugin LatencyTracker\n";
+        } else {
+            ifaceLatency = dynamic_cast<LatencyTracker *>(latency_plugin);
+           // ifaceInstruction = dynamic_cast<InstructionTracker *>(instruction_plugin);
+            if (!ifaceLatency ) {
+                getWarningsStream(state) << "LatencyTracker is not an instance of IPluginInvoker\n";
+            } else {
+                getInfoStream(state) << "Sending module '" << module.Name 
+                  << "'s entry point " <<  hexval(module.EntryPoint) << " to LatencyTracker\n";
+                ifaceLatency->setEntryPoint(state, module.EntryPoint);
+              // ifaceInstruction->setEntryPoint(state, modLoad.loadEntry);
+            }
+        }
+        /** VIOLET changes END **/
         return;
     }
 }

@@ -14,11 +14,12 @@
 #include <klee/Internal/ADT/ImmutableMap.h>
 #include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
 #include <s2e/Plugins/OSMonitors/Windows/WindowsCrashMonitor.h>
+#include <s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h>
+#include <s2e/Plugins/ConfigurationAnalysis/LatencyTracker.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
 #include <s2e/Utils.h>
-#include "s2e/Plugins/InstructionTracker.h"
 
 #include <TraceEntries.pb.h>
 

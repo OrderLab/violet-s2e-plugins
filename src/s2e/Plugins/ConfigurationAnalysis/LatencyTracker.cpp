@@ -105,7 +105,7 @@ void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
 
 void LatencyTracker::setEntryPoint(S2EExecutionState *state, uint64_t entry_point) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  getInfoStream(state) << "Set the Entry Point " << hexval(entry_point) << '\n';
+  getInfoStream(state) << "Set the entry point to " << hexval(entry_point) << '\n';
   return plgState->setEntryPoint(entry_point);
 }
 
