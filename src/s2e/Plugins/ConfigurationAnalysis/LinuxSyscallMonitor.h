@@ -1,12 +1,13 @@
-/*
- * SyscallMonitor.h
- *
- *  Created on: Oct 7, 2019
- *      Author: Yigong Hu
- */
+// 
+// The Violet Project
+//
+// Created by yigonghu on 10/07/19.
+//
+// Original author: zaddach
+//
 
-#ifndef SYSCALLMONITOR_H_
-#define SYSCALLMONITOR_H_
+#ifndef VIOLET_SYSCALLMONITOR_H
+#define VIOLET_SYSCALLMONITOR_H
 
 #include <s2e/Plugin.h>
 #include <s2e/CorePlugin.h>
@@ -16,8 +17,6 @@
 
 namespace s2e {
 namespace plugins {
-
-
 
 /**
  * This plugin monitors the system for Linux syscalls (Kernel entry points in userspace) and emits a signal
@@ -106,4 +105,4 @@ public:
 } //namespace plugins
 } //namespace s2e
 
-#endif /* SYSCALLMONITOR_H_ */
+#endif /* VIOLET_SYSCALLMONITOR_H */

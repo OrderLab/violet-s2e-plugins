@@ -1,12 +1,17 @@
+// 
+// The Violet Project
 //
 // Created by yigonghu on 10/11/19.
 //
+// Copyright (c) 2019, Johns Hopkins University - Order Lab.
+//
+//    All rights reserved.
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//
 
-#ifndef LIBS2ECORE_INSTRUCTIONTRACKER_H
-#define LIBS2ECORE_INSTRUCTIONTRACKER_H
+#ifndef VIOLET_INSTRTRACKER_H
+#define VIOLET_INSTRTRACKER_H
 
-
-// These header files are located in libs2ecore
 #include <s2e/Plugin.h>
 #include <s2e/CorePlugin.h>
 #include <s2e/S2EExecutionState.h>
@@ -66,4 +71,4 @@ class InstructionTrackerState : public PluginState {
 } // namespace plugins
 } // namespace s2e
 
-#endif //LIBS2ECORE_INSTRUCTIONTRACKER_H
+#endif // VIOLET_INSTRTRACKER_H

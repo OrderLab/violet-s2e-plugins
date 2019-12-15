@@ -15,6 +15,7 @@
 
 #include <s2e/ConfigFile.h>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
+#include <s2e/Plugins/ConfigurationAnalysis/DynamicSymbolicTracker.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
@@ -199,9 +200,18 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state) {
     if (name && !state->mem()->readString(name, nameStr)) {
         getWarningsStream(state) << "Error reading string from the guest\n";
     }
-
     makeSymbolic(state, address, size, nameStr);
+
+    /** VIOLET changes BEGIN **/
+    DynamicSymbolicTracker *violet_plugin = s2e()->getPlugin<DynamicSymbolicTracker>();
+    if (!violet_plugin) {
+        getWarningsStream(state) << "Could not find plugin DynamicSymbolicTracker\n";
+    } else {
+        violet_plugin->trackSymbolic(state, address, size, nameStr, false);
+    }
+    /** VIOLET changes END **/
 }
+
 void BaseInstructions::maybeSymbolic(S2EExecutionState *state, uintptr_t address, unsigned size,
                   const std::string &nameStr, std::vector<klee::ref<klee::Expr>> *varData,
                   std::string *varName) {
@@ -227,6 +237,14 @@ void BaseInstructions::maybeSymbolic(S2EExecutionState *state) {
     }
 
     maybeSymbolic(state, address, size, nameStr);
+    /** VIOLET changes BEGIN **/
+    DynamicSymbolicTracker *violet_plugin = s2e()->getPlugin<DynamicSymbolicTracker>();
+    if (!violet_plugin) {
+        getWarningsStream(state) << "Could not find plugin DynamicSymbolicTracker\n";
+    } else {
+        violet_plugin->trackSymbolic(state, address, size, nameStr, true);
+    }
+    /** VIOLET changes END **/
 }
 
 void BaseInstructions::isSymbolic(S2EExecutionState *state) {

@@ -127,6 +127,7 @@ add_library(
 
     #Viotlet
     s2e/Plugins/ConfigurationAnalysis/LatencyTracker.cpp
+    s2e/Plugins/ConfigurationAnalysis/DynamicSymbolicTracker.cpp
 
      ${PROTO_SRCS} ${PROTO_HDRS}
 )

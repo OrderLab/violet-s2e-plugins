@@ -1,11 +1,17 @@
+// 
+// The Violet Project
 //
 // Created by yigonghu on 8/23/19.
 //
+// Copyright (c) 2019, Johns Hopkins University - Order Lab.
+//
+//    All rights reserved.
+//    Licensed under the Apache License, Version 2.0 (the "License");
+//
 
-#ifndef S2E_PLUGINS_INSTRTRACKER_H
-#define S2E_PLUGINS_INSTRTRACKER_H
+#ifndef VIOLET_LATENCYTRACKER_H
+#define VIOLET_LATENCYTRACKER_H
 
-// These header files are located in libs2ecore
 #include <s2e/Plugin.h>
 #include <s2e/CorePlugin.h>
 #include <s2e/S2EExecutor.h>
@@ -193,4 +199,4 @@ class LatencyTrackerState : public PluginState {
 } // namespace plugins
 } // namespace s2e
 
-#endif
+#endif /* VIOLET_LATENCYTRACKER_H */
