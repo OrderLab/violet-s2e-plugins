@@ -50,6 +50,9 @@ public:
     void makeSymbolic(S2EExecutionState *state, uintptr_t address, unsigned size, const std::string &nameStr,
                       std::vector<klee::ref<klee::Expr>> *varData = nullptr, std::string *varName = nullptr);
 
+    void maybeSymbolic(S2EExecutionState *state, uintptr_t address, unsigned size, const std::string &nameStr,
+                      std::vector<klee::ref<klee::Expr>> *varData = nullptr, std::string *varName = nullptr);
+
     virtual void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
 
 private:
@@ -63,6 +66,7 @@ private:
     void checkPlugin(S2EExecutionState *state) const;
     void invokePlugin(S2EExecutionState *state);
     void makeSymbolic(S2EExecutionState *state);
+    void maybeSymbolic(S2EExecutionState *state);
     void isSymbolic(S2EExecutionState *state);
     void killState(S2EExecutionState *state);
     void printExpression(S2EExecutionState *state);

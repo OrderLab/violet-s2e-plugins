@@ -202,6 +202,32 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state) {
 
     makeSymbolic(state, address, size, nameStr);
 }
+void BaseInstructions::maybeSymbolic(S2EExecutionState *state, uintptr_t address, unsigned size,
+                  const std::string &nameStr, std::vector<klee::ref<klee::Expr>> *varData,
+                  std::string *varName) {
+    getInfoStream(state) << "Maybe making " << nameStr << " symbolic\n";
+}
+
+void BaseInstructions::maybeSymbolic(S2EExecutionState *state) {
+    target_ulong address, size, name;
+    bool ok = true;
+    ok &= state->regs()->read(CPU_OFFSET(regs[R_EAX]), &address, sizeof address, false);
+    ok &= state->regs()->read(CPU_OFFSET(regs[R_EBX]), &size, sizeof size, false);
+    ok &= state->regs()->read(CPU_OFFSET(regs[R_ECX]), &name, sizeof name, false);
+
+    if (!ok) {
+        getWarningsStream(state) << "ERROR: symbolic argument was passed to s2e_op "
+                                    " maybe_symbolic opcode\n";
+        return;
+    }
+
+    std::string nameStr = "unnamed";
+    if (name && !state->mem()->readString(name, nameStr)) {
+        getWarningsStream(state) << "Error reading string from the guest\n";
+    }
+
+    maybeSymbolic(state, address, size, nameStr);
+}
 
 void BaseInstructions::isSymbolic(S2EExecutionState *state) {
     target_ulong address;
@@ -757,7 +783,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState *state, uint64_t opcod
             makeSymbolic(state);
             break;
         }
-
+        case BASE_S2E_MAYBE_SYMBOLIC: { /* s2e_maybe_symbolic */
+            maybeSymbolic(state);
+            break;
+        }
         case BASE_S2E_IS_SYMBOLIC: { /* s2e_is_symbolic */
             isSymbolic(state);
             break;
