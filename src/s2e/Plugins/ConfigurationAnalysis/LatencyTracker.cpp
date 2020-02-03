@@ -140,10 +140,10 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
         return;
       }
-      if (!temp) {
-        temp++;
-        break;
-      }
+//      if (!temp) {
+//        temp++;
+//        break;
+//      }
 
       plgState->traceFunction = true;
       plgState->roundId++;
@@ -279,9 +279,10 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
   matchParent(state);
   double avg_latency = 0;
   int count = 0;
+  getInfoStream(state) << "the state is " << state->getID() << "\n";
   while (!plgState->latencyList.empty()) {
     double &latency = plgState->latencyList.back();
-    avg_latency += latency; 
+    avg_latency += latency;
     count++;
     plgState->latencyList.pop_back();
 
@@ -295,6 +296,11 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
 
 void LatencyTracker::functionForEach(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  if (!state->is_vaild) {
+    getInfoStream(state) << "Invaild path\n";
+    return;
+  }
+
   for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
     for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator) {
       if (printTrace) {
@@ -302,7 +308,7 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
         // Now, we directly use the load_bias from the kernel
         printCallRecord(state, plgState->getLoadBias(), &(iterator->second));
       }
-      writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
+        writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
     }
   }
 }

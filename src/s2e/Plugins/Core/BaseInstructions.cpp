@@ -614,6 +614,7 @@ void BaseInstructions::assumeInternal(S2EExecutionState *state, klee::ref<klee::
     getDebugStream(state) << "Assuming " << boolExpr << "\n";
 
     if (!state->addConstraint(boolExpr, true)) {
+        state->is_vaild = false;
         s2e()->getExecutor()->terminateState(*state, "Tried to add an invalid constraint");
     }
 }

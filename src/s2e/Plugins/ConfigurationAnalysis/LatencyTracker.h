@@ -52,7 +52,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     FunctionMonitor* functionMonitor;
     OSMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
-    int temp;
+//    int temp;
 
   public:
     enum enum_track_command {
@@ -63,7 +63,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       is_profileAll = false;
       traceSyscall = false;
       traceInstruction = false;
-      temp = 0;
+//      temp = 0;
     }
 
     ~LatencyTracker();
