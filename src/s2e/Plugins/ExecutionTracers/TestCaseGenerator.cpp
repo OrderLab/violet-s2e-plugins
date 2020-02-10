@@ -161,6 +161,15 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
     Plugin *plugin;
     LatencyTracker *iface = nullptr;
+
+    ConcreteInputs inputs;
+    bool success = state->getSymbolicSolution(inputs);
+
+    if (!success) {
+        getWarningsStream(state) << "Could not get symbolic solutions" << '\n';
+        return;
+    }
+
     plugin = s2e()->getPlugin("LatencyTracker");
     if (!plugin) {
         getWarningsStream(state) << "ERROR: LatencyTracker could not find plugin " << "\n";
@@ -173,17 +182,9 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
         } else {
             getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) <<
-            "; the number of instruction "<< iface->getScore(state) <<"; the number of syscall " << iface->getSyscall(state) <<";\n";
-            iface->getFunctionTracer(state);
+                                 "; the number of instruction "<< iface->getScore(state) <<"; the number of syscall " << iface->getSyscall(state) <<";\n";
+            iface->getFunctionTracer(state, inputs);
         }
-    }
-
-    ConcreteInputs inputs;
-    bool success = state->getSymbolicSolution(inputs);
-
-    if (!success) {
-        getWarningsStream(state) << "Could not get symbolic solutions" << '\n';
-        return;
     }
 
     if (type & TC_LOG) {

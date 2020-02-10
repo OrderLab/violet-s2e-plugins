@@ -17,6 +17,7 @@
 #include <list>
 #include <mutex>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
+#include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
 
 namespace s2e {
 namespace plugins {
@@ -43,6 +44,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
   private:
     std::string m_fileName;
     FILE *m_traceFile;
+    std::string m_symbolicFileName;
+    FILE *m_symbolicTraceFile;
     bool is_profileAll;
     bool printTrace;
     bool traceSyscall;
@@ -52,7 +55,17 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     FunctionMonitor* functionMonitor;
     OSMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
+    char configuration[1024]; // IMPORTANT!! the definition must be consistent with the mysqld
+
+    struct concreteConstraint {
+      int id;
+      int constraintsIndex;
+      int64_t value;
+      bool is_target;
+    };
 //    int temp;
+    typedef std::pair<std::string, std::vector<unsigned char>> VarValuePair;
+    typedef std::vector<VarValuePair> ConcreteInputs;
 
   public:
     enum enum_track_command {
@@ -85,12 +98,13 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
     void onException (ExecutionSignal* signal, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc, unsigned exception_idx);
     void onSyscall(S2EExecutionState* state, uint64_t pc, uint32_t sysc_number);
-    void getFunctionTracer(S2EExecutionState* state);
+    void getFunctionTracer(S2EExecutionState* state,const ConcreteInputs &inputs);
     void matchParent(S2EExecutionState *state);
     void calculateLatency(S2EExecutionState *state);
 
     void printCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
     bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
+    void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs);
     void flush();
 };
 

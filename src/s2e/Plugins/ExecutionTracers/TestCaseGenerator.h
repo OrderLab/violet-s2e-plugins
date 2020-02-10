@@ -243,6 +243,7 @@ private:
     void onWindowsKernelCrash(S2EExecutionState *state, const vmi::windows::BugCheckDescription &desc);
 
     void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs);
+    void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs, FILE* traceFile);
     void writeSimpleTestCase(llvm::raw_ostream &os, const ConcreteInputs &inputs);
 
     bool getFilePart(const std::string &variableName, std::string &filePath, unsigned *part, unsigned *total) const;

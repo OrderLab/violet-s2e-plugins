@@ -11,6 +11,8 @@
 #include <stack>
 #include <assert.h>
 #include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
+#include <string.h>
+#include <stdio.h>
 
 using namespace std;
 namespace s2e {
@@ -45,12 +47,16 @@ void LatencyTracker::initialize() {
 void LatencyTracker::createNewTraceFile(bool append) {
   if (append) {
     assert(m_fileName.size() > 0);
+    assert(m_symbolicFileName.size() > 0);
     m_traceFile = fopen(m_fileName.c_str(), "a");
+    m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"a");
   } else {
     m_fileName = s2e()->getOutputFilename("LatencyTracer.dat");
     m_traceFile = fopen(m_fileName.c_str(), "wb");
+    m_symbolicFileName = s2e()->getOutputFilename("ConstraintTracer.dat");
+    m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"wb");
   }
-  if (!m_traceFile) {
+  if (!m_traceFile || !m_symbolicTraceFile) {
     getWarningsStream() << "Could not create LatencyTracer.dat" << '\n';
     exit(-1);
   }
@@ -124,8 +130,12 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
   }
 
   if (guestDataSize != sizeof(command)) {
-    getWarningsStream(state) << "mismatched S2E_MODULE_MAP_COMMAND size\n";
-    exit(-1);
+    if (!state->mem()->read(guestDataPtr, &configuration, guestDataSize)) {
+      getWarningsStream(state) << "could not read transmitted data\n";
+      exit(-1);
+    }
+    getInfoStream(state) << "the configuration is " << configuration << "\n";
+    return;
   }
 
   if (!state->mem()->read(guestDataPtr, &command, guestDataSize)) {
@@ -148,7 +158,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       plgState->traceFunction = true;
       plgState->roundId++;
       plgState->m_tid = linuxMonitor->getTid(state);
-      getInfoStream(state) << "Tracing starting\n";
+      getInfoStream(state) << "Record trace result for process " << plgState->m_tid << "\n";
       if (plgState->getRegState())
         return;
 
@@ -159,7 +169,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
     case TRACK_END:
       plgState->activityId = 0;
       plgState->m_tid = 0;
-      getInfoStream(state) << "Tracing end\n";
+//      getInfoStream(state) << "Tracing end\n";
       plgState->traceFunction = false;
       if (!plgState->callList.empty()) {
         plgState->callLists.push_back(plgState->callList);
@@ -169,7 +179,6 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         plgState->returnLists.push_back(plgState->returnList);
         plgState->returnList.clear();
       }
-
       break;
   }
 }
@@ -271,7 +280,7 @@ void LatencyTracker::calculateLatency(S2EExecutionState *state) {
   }
 }
 
-void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
+void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteInputs &inputs) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
   assert(plgState->callLists.size() == plgState->returnLists.size());
 
@@ -279,7 +288,6 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
   matchParent(state);
   double avg_latency = 0;
   int count = 0;
-  getInfoStream(state) << "the state is " << state->getID() << "\n";
   while (!plgState->latencyList.empty()) {
     double &latency = plgState->latencyList.back();
     avg_latency += latency;
@@ -290,16 +298,20 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state) {
   if (count > 0) {
     avg_latency /= (double) count;
   }
-  getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
-  functionForEach(state);
-}
-
-void LatencyTracker::functionForEach(S2EExecutionState *state) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
   if (!state->is_vaild) {
     getInfoStream(state) << "Invaild path\n";
     return;
   }
+  getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
+  functionForEach(state);
+  if (!printTrace) {
+    writeTestCaseToTrace(state, inputs);
+  }
+}
+
+void LatencyTracker::functionForEach(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+
 
   for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
     for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator) {
@@ -342,6 +354,9 @@ int LatencyTracker::getSyscall(S2EExecutionState *state) {
 void LatencyTracker::flush() {
   if (m_traceFile) {
     fflush(m_traceFile);
+  }
+  if(m_symbolicTraceFile) {
+    fflush(m_symbolicTraceFile);
   }
 }
 
@@ -390,10 +405,50 @@ bool LatencyTracker::writeCallRecord(S2EExecutionState *state, uint64_t loadBias
   return true;
 }
 
+void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs) {
+  std::stringstream ss;
+  ConcreteInputs::const_iterator it;
+  std::string constraints_name;
+  assert(m_symbolicTraceFile);
+  int state_id = 0;
+  if (state) {
+    state_id = state->getID();
+  }
+  for (it = inputs.begin(); it != inputs.end(); ++it) {
+    const VarValuePair &vp = *it;
+    int64_t valueAsInt = 0;
+    struct concreteConstraint pair;
+    std::size_t index = vp.first.find("_");
+    std::size_t rindex = vp.first.rfind("_");
+    pair.constraintsIndex = std::stoi(vp.first.substr(1, (index-1)));
+    constraints_name = vp.first.substr(index+1,(rindex-index-1));
+    if(strstr(constraints_name.c_str(),configuration)) {
+      pair.is_target = true;
+    } else {
+      pair.is_target = false;
+    }
+    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
+    for (unsigned i = 0; i < vp.second.size(); ++i) {
+      valueAsInt |= ((int64_t) vp.second[i] << (i*8));
+    }
+    pair.value = valueAsInt;
+    pair.id = state_id;
+    if (fwrite(&pair, sizeof(struct concreteConstraint), 1, m_symbolicTraceFile) != 1) {
+      return ;
+    }
+    getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
+  }
+}
+
+
 LatencyTracker::~LatencyTracker() {
   if (m_traceFile) {
     fclose(m_traceFile);
     m_traceFile = nullptr;
+  }
+  if(m_symbolicTraceFile) {
+    fclose(m_symbolicTraceFile);
+    m_symbolicTraceFile = nullptr;
   }
 }
 
