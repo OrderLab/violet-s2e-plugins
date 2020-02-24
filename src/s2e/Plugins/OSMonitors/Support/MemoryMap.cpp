@@ -95,6 +95,7 @@ private:
 public:
     void addRegion(uint64_t pid, uint64_t addr, uint64_t end, MemoryMapRegionType type) {
         assert(end > addr);
+
         removeRegion(pid, addr, end); // FIXME: make it faster
 
         auto &map = m_regions[pid];
@@ -332,6 +333,8 @@ void MemoryMap::addRegion(S2EExecutionState *state, uint64_t pid, uint64_t addre
     // is reponsible for the check.
     DECLARE_PLUGINSTATE(MemoryMapState, state);
     pid = m_monitor->translatePid(pid, address);
+    if (end < address)
+        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(pid, address, end, type);
 }
 
@@ -369,6 +372,8 @@ void MemoryMap::onLinuxMemoryMap(S2EExecutionState *state, uint64_t pid, uint64_
     ComputeStartEndAddress(addr, size, start, end);
 
     DECLARE_PLUGINSTATE(MemoryMapState, state);
+    if (end < start)
+        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(pid, start, end, type);
 }
 
@@ -403,6 +408,8 @@ void MemoryMap::onDecreeUpdateMemoryMap(S2EExecutionState *state, uint64_t pid, 
     }
 
     DECLARE_PLUGINSTATE(MemoryMapState, state);
+    if (vma.end <  vma.start)
+        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(pid, vma.start, vma.end, type);
 }
 
@@ -497,6 +504,8 @@ void MemoryMap::onNtProtectVirtualMemory(S2EExecutionState *state, const S2E_WIN
 
     DECLARE_PLUGINSTATE(MemoryMapState, state);
     MemoryMapRegionType type = WindowsProtectionToInternal(d.NewProtection);
+    if (end < start)
+        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(real_pid, start, end, type);
 }
 
@@ -524,6 +533,8 @@ void MemoryMap::onNtMapViewOfSection(S2EExecutionState *state, const S2E_WINMON2
 
     DECLARE_PLUGINSTATE(MemoryMapState, state);
     MemoryMapRegionType type = WindowsProtectionToInternal(d.Win32Protect);
+    if (end < start)
+        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(real_pid, start, end, type);
 }
 
