@@ -395,6 +395,51 @@ void BaseInstructions::hexDump(S2EExecutionState *state) {
     os << "  " << buff << "\n";
 }
 
+/**Violet change**/
+void BaseInstructions::concretizeAll(S2EExecutionState *state) {
+  target_ulong address, size;
+
+  bool ok = true;
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EAX]), &address, sizeof address, false);
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &size, sizeof size, false);
+
+  if (!ok) {
+    getWarningsStream(state) << "ERROR: symbolic argument was passed to s2e_op "
+                                " get_example opcode\n";
+    return;
+  }
+  state->mem()->test = true;
+  for (unsigned i = 0; i < size; ++i) {
+    uint8_t b = 0;
+//        getDebugStream(state) << "test address is " << hexval(address) <<"; the constraint " << addConstraint <<"\n";
+    klee::ref<klee::Expr> ret = state->mem()->read(address + i);
+    if (ret.isNull()) {
+      getWarningsStream() << "Could not read address " << hexval(address + i) << "\n";
+      continue;
+    }
+
+    if (!state->mem()->read<uint8_t>(address + i, &b, VirtualAddress, 1)) {
+      getWarningsStream(state) << "Can not concretize memory"
+                               << " at " << hexval(address + i) << '\n';
+    }
+
+    if (!isa<ConstantExpr>(ret)) {
+      ObjectPair op = state->mem()->getMemoryObject(address+i);
+      const ObjectState *wos = op.second;
+      for(auto users: wos->owners_map)
+        for (auto user:users.second) {
+//              getDebugStream(state) << "the concretize address is " << hexval(user) <<"\n";
+          if (!state->mem()->read<uint8_t>(user, &b, HostAddress, 1)) {
+            getWarningsStream(state) << "Can not concretize memory"
+                                     << " at " << hexval(user) << '\n';
+          }
+        }
+    }
+  }
+  state->mem()->test = false;
+}
+/**Change end**/
+
 void BaseInstructions::concretize(S2EExecutionState *state, bool addConstraint) {
     target_ulong address, size;
 
@@ -614,7 +659,7 @@ void BaseInstructions::assumeInternal(S2EExecutionState *state, klee::ref<klee::
     getDebugStream(state) << "Assuming " << boolExpr << "\n";
 
     if (!state->addConstraint(boolExpr, true)) {
-        state->is_vaild = false;
+        state->is_valid = false;
         s2e()->getExecutor()->terminateState(*state, "Tried to add an invalid constraint");
     }
 }
@@ -844,6 +889,10 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState *state, uint64_t opcod
 
         case BASE_S2E_CONCRETIZE: /* s2e_concretize */
             concretize(state, true);
+            break;
+
+        case VIOLET_S2E_CONCRETIZEALL:
+            concretizeAll(state);
             break;
 
         case BASE_S2E_EXAMPLE: { /* s2e_get_example */

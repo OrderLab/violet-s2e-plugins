@@ -158,7 +158,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       plgState->traceFunction = true;
       plgState->roundId++;
       plgState->m_tid = linuxMonitor->getTid(state);
-      getInfoStream(state) << "Record trace result for process " << plgState->m_tid << "\n";
+//      getInfoStream(state) << "Record trace result for process " << plgState->m_tid << "\n";
       if (plgState->getRegState())
         return;
 
@@ -298,8 +298,8 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
   if (count > 0) {
     avg_latency /= (double) count;
   }
-  if (!state->is_vaild) {
-    getInfoStream(state) << "Invaild path\n";
+  if (!state->is_valid) {
+    getInfoStream(state) << "Invalid path\n";
     return;
   }
   getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
@@ -422,7 +422,8 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
     std::size_t rindex = vp.first.rfind("_");
     pair.constraintsIndex = std::stoi(vp.first.substr(1, (index-1)));
     constraints_name = vp.first.substr(index+1,(rindex-index-1));
-    if(strstr(constraints_name.c_str(),configuration)) {
+//    getInfoStream(state) << "the constraints name is " << constraints_name << "\n";
+    if(!strcmp(constraints_name.c_str(),configuration)) {
       pair.is_target = true;
     } else {
       pair.is_target = false;

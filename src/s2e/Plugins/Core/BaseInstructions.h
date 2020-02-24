@@ -70,6 +70,7 @@ private:
     void printMemory(S2EExecutionState *state);
     void hexDump(S2EExecutionState *state);
     void concretize(S2EExecutionState *state, bool addConstraint);
+    void concretizeAll(S2EExecutionState *state);
     void sleep(S2EExecutionState *state);
     void assume(S2EExecutionState *state);
     void assumeRange(S2EExecutionState *state);
