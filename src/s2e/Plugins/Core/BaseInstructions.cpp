@@ -199,7 +199,7 @@ void BaseInstructions::makeSymbolic(S2EExecutionState *state) {
     if (name && !state->mem()->readString(name, nameStr)) {
         getWarningsStream(state) << "Error reading string from the guest\n";
     }
-
+    getDebugStream(state) << " the namestr is " << nameStr << "\n";
     makeSymbolic(state, address, size, nameStr);
 }
 
@@ -230,6 +230,7 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state) {
         if (!isa<ConstantExpr>(ret)) {
             result = 1;
         }
+        getDebugStream(state) << "address " << hexval(state->mem()->getHostAddress(address,VirtualAddress)+i) << "; the ret is " << (*ret) << "\n";
     }
 
     getDebugStream(state) << "Testing whether data at " << hexval(address) << " and size " << size
@@ -396,6 +397,25 @@ void BaseInstructions::hexDump(S2EExecutionState *state) {
 }
 
 /**Violet change**/
+#define MAGIC_NUMBER 68
+
+klee::ref<klee::Expr> BaseInstructions::extractExpression(S2EExecutionState *state, klee::ref<Expr> e) {
+//  if (ConstantExpr *CE = dyn_cast<ConstantExpr>(e)) {
+//    return nullptr;
+//  }
+//
+//  if (ReadExpr *re = dyn_cast<ReadExpr>(e)) {
+//      getDebugStream(state) << "Read " <<re->getUpdates().getRoot()->getName() << "\n";
+//      return nullptr;
+//  } else if (const ExtractExpr *ee = dyn_cast<ExtractExpr>(e)) {
+//      return extractExpression(state,ee->getExpr());
+//  } else if (e->getKind() == Expr::Concat || e->getKind() == Expr::SExt) {
+//
+//  }
+
+  return nullptr;
+}
+
 void BaseInstructions::concretizeAll(S2EExecutionState *state) {
   target_ulong address, size;
 
@@ -408,10 +428,10 @@ void BaseInstructions::concretizeAll(S2EExecutionState *state) {
                                 " get_example opcode\n";
     return;
   }
-  state->mem()->test = true;
+
   for (unsigned i = 0; i < size; ++i) {
     uint8_t b = 0;
-//        getDebugStream(state) << "test address is " << hexval(address) <<"; the constraint " << addConstraint <<"\n";
+
     klee::ref<klee::Expr> ret = state->mem()->read(address + i);
     if (ret.isNull()) {
       getWarningsStream() << "Could not read address " << hexval(address + i) << "\n";
@@ -424,19 +444,23 @@ void BaseInstructions::concretizeAll(S2EExecutionState *state) {
     }
 
     if (!isa<ConstantExpr>(ret)) {
-      ObjectPair op = state->mem()->getMemoryObject(address+i);
-      const ObjectState *wos = op.second;
-      for(auto users: wos->owners_map)
-        for (auto user:users.second) {
-//              getDebugStream(state) << "the concretize address is " << hexval(user) <<"\n";
-          if (!state->mem()->read<uint8_t>(user, &b, HostAddress, 1)) {
-            getWarningsStream(state) << "Can not concretize memory"
-                                     << " at " << hexval(user) << '\n';
+      MemoryMap::iterator ai = state->addressSpace.objects.begin();
+      MemoryMap::iterator ae = state->addressSpace.objects.end();
+      for (; ai != ae ; ++ai) {
+        const ObjectState *wos = ai->second;
+        for (int offset = 0; offset < wos->size; offset++) {
+          if (wos->knownSymbolics && wos->knownSymbolics[offset].get()) {
+            if (wos->getObject()->id == MAGIC_NUMBER) // Pass the MAGIC memory object for avoiding failure
+              continue;
+            if (!state->mem()->read<uint8_t>(wos->getObject()->address+offset, &b, HostAddress, 1)) {
+              getWarningsStream(state) << "Can not concretize memory" << " at " << hexval(wos->getObject()->address+offset) << '\n';
+            }
           }
         }
+      }
     }
   }
-  state->mem()->test = false;
+
 }
 /**Change end**/
 
