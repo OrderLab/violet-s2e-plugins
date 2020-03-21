@@ -6,23 +6,36 @@
 /// Licensed under the Cyberhaven Research License Agreement.
 ///
 
-#ifndef S2E_PLUGINS_FILEIOTRACER_H
-#define S2E_PLUGINS_FILEIOTRACER_H
+#ifndef S2E_PLUGINS_FILEIOTRACKER_H
+#define S2E_PLUGINS_FILEIOTRACKER_H
 
 #include <s2e/CorePlugin.h>
 #include <s2e/Plugin.h>
 #include <s2e/S2EExecutionState.h>
 #include "ExecutionTracer.h"
 
+#include <map>
+#include <iterator>
+
+using namespace std;
+
 namespace s2e {
 namespace plugins {
 
-class FileIOTracer : public Plugin {
+class FileIOTracker : public Plugin {
   S2E_PLUGIN
  private:
 
   std::string m_fileName;
   FILE *m_traceFile;
+
+  map<uint64_t, pair<uint64_t, uint64_t>> m_rw; // first read, second write
+  map<uint64_t, pair<uint64_t, uint64_t>>::iterator m_itr;
+//  map<uint64_t, uint64_t> m_read;
+//  map<uint64_t, uint64_t> m_write;
+//  map<uint64_t, uint64_t> m_tmp_map;
+//  map<uint64_t, uint64_t>::iterator m_itr;
+//  map<uint64_t, uint64_t>::iterator m_w_itr;
 
   void onTranslateSpecialInstructionEnd(
       ExecutionSignal *signal,
@@ -32,10 +45,15 @@ class FileIOTracer : public Plugin {
       special_instruction_t type
   );
 
+  void onSyscall(S2EExecutionState *state, uint64_t pc);
+
+  void inc_state_read(S2EExecutionState *state, uint64_t length);
+  void inc_state_write(S2EExecutionState *state, uint64_t length);
+
  public:
-  FileIOTracer(S2E *s2e) : Plugin(s2e) {
+  FileIOTracker(S2E *s2e) : Plugin(s2e) {
   }
-  ~FileIOTracer();
+  ~FileIOTracker();
 
   void initialize();
 
@@ -47,4 +65,4 @@ class FileIOTracer : public Plugin {
 } // namespace plugins
 } // namespace s2e
 
-#endif // S2E_PLUGINS_FILEIOTRACER_H
+#endif // S2E_PLUGINS_FILEIOTRACKER_H
