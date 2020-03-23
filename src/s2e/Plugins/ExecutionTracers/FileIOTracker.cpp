@@ -44,7 +44,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   uint64_t eax, edx;
   uint64_t read = 0x0, write = 0x1; // 0x0 sys_read, 0x1 sys_write
 
-  // get value from eax register
+  // get value from eax and edx register
   bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
   ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &edx, sizeof(edx));
   if (!ok) {
@@ -54,7 +54,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
   if (eax >> 1) return; // not read or write
 
-  //
+  // 139392, 139692
 
   if (eax == read) {
     getInfoStream() << "r " << edx << "\n";
@@ -84,54 +84,6 @@ void FileIOTracker::inc_state_write(S2EExecutionState *state, uint64_t length) {
   }
 }
 
-//void FileIOTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,
-//                                                    TranslationBlock *tb, uint64_t pc,
-//                                                    special_instruction_t type) {
-//  if (type != SYSCALL) return;
-//
-//  uint64_t eax, edx;
-//  uint64_t read = 0x0, write = 0x1; // 0x0 sys_read, 0x1 sys_write
-//
-//  // get value from eax register
-//  bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
-//  if (!ok) {
-//    getWarningsStream(state) << "couldn't read from EAX register at PC " << pc << "\n";
-//    return;
-//  }
-//
-//  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &edx, sizeof(edx));
-//  if (!ok) {
-//    getWarningsStream(state) << "couldn't read from EDX register at PC " << pc << "\n";
-//    return;
-//  }
-//
-//  if (eax == read) {
-//    if (m_read.find(state->getID()) == m_read.end()) {
-//      m_read.insert(pair<uint64_t, uint64_t>(state->getID(), edx));
-//    } else {
-//      m_read.at(state->getID()) += edx;
-//    }
-////    getInfoStream(state) << "READ  system call at PC " << pc << "\n";
-////    fprintf(m_traceFile, "State[%d] READ  system call at PC 0x%lX\n", state->getID(), (unsigned long)pc);
-//  } else if (eax == write) {
-//    if (m_write.find(state->getID()) == m_write.end()) {
-//      m_write.insert(pair<uint64_t, uint64_t>(state->getID(), edx));
-//    } else {
-//      m_write.at(state->getID()) += edx;
-//    }
-//
-////    if (!freopen(m_fileName.c_str(), "w", m_traceFile)) {
-////      getWarningsStream() << "Could not reopen FileIOTracker.result" << '\n';
-////    }
-//
-//
-////    getInfoStream(state) << "WRITE system call at PC " << pc << "\n";
-////    fprintf(m_traceFile, "State[%d] WRITE system call at PC 0x%lX\n", state->getID(), (unsigned long)pc);
-//  }
-//}
-
-
-
 void FileIOTracker::createNewTraceFile(bool append) {
   if (append) {
     assert(m_fileName.size() > 0);
@@ -146,24 +98,13 @@ void FileIOTracker::createNewTraceFile(bool append) {
   }
 }
 
-
 FileIOTracker::~FileIOTracker() {
-
-  // write file ....
-
-  for (m_itr = m_rw.begin(); m_itr != m_rw.end(); ++m_itr) {
-    unsigned long state = m_itr->first, read = m_itr->second.first, write = m_itr->second.second;
+  // write results to FileIOTracker.result
+  map<uint64_t, pair<uint64_t, uint64_t>>::iterator itr;
+  for (itr = m_rw.begin(); itr != m_rw.end(); ++itr) {
+    unsigned long state = itr->first, read = itr->second.first, write = itr->second.second;
     fprintf(m_traceFile, "State[%lu]  read %lu  write %lu\n", state, read, write);
   }
-//  for (m_itr = m_write.begin(); m_itr != m_write.end(); ++m_itr) {
-//    state = m_itr->first;
-//    if (m_read.find(state) == m_read.end()) {
-//      fprintf(m_traceFile, "State[%lu]  write %lu\n", state, m_itr->second);
-//    }
-////    fprintf(m_traceFile, "State[%lu] write %lu \n", (unsigned long)m_itr->first, (unsigned long)m_itr->second);
-//  }
-
-
   if (!m_traceFile) return;
   fclose (m_traceFile);
   m_traceFile = nullptr;

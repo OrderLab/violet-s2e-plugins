@@ -25,17 +25,9 @@ namespace plugins {
 class FileIOTracker : public Plugin {
   S2E_PLUGIN
  private:
-
   std::string m_fileName;
   FILE *m_traceFile;
-
   map<uint64_t, pair<uint64_t, uint64_t>> m_rw; // first read, second write
-  map<uint64_t, pair<uint64_t, uint64_t>>::iterator m_itr;
-//  map<uint64_t, uint64_t> m_read;
-//  map<uint64_t, uint64_t> m_write;
-//  map<uint64_t, uint64_t> m_tmp_map;
-//  map<uint64_t, uint64_t>::iterator m_itr;
-//  map<uint64_t, uint64_t>::iterator m_w_itr;
 
   void onTranslateSpecialInstructionEnd(
       ExecutionSignal *signal,
@@ -48,6 +40,7 @@ class FileIOTracker : public Plugin {
   void onSyscall(S2EExecutionState *state, uint64_t pc);
 
   void inc_state_read(S2EExecutionState *state, uint64_t length);
+
   void inc_state_write(S2EExecutionState *state, uint64_t length);
 
  public:
@@ -58,7 +51,6 @@ class FileIOTracker : public Plugin {
   void initialize();
 
   void createNewTraceFile(bool append);
-//  bool writeTraceRecord(S2EExecutionState *state, uint64_t pc);
 
 };
 
