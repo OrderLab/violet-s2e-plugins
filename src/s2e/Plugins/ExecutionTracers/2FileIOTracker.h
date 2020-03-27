@@ -16,7 +16,6 @@
 
 #include <map>
 #include <iterator>
-#include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
 
 using namespace std;
 
@@ -26,15 +25,9 @@ namespace plugins {
 class FileIOTracker : public Plugin {
   S2E_PLUGIN
  private:
-  std::string m_fileName;
-  FILE *m_traceFile;
-  map<uint64_t, pair<uint64_t, uint64_t>> m_rw; // first read, second write
-  bool trackSize;
-  string targetProcessName;
-  uint64_t targetProcessPid;
-  bool targetProcessStart;
 
-  LinuxMonitor *monitor;
+  //std::string m_fileName;
+  //FILE *m_file;
 
   void onTranslateSpecialInstructionEnd(
       ExecutionSignal *signal,
@@ -44,18 +37,6 @@ class FileIOTracker : public Plugin {
       special_instruction_t type
   );
 
-  void onSyscall(S2EExecutionState *state, uint64_t pc);
-
-
- //(void, )
-  void onProcessLoad(S2EExecutionState *state, uint64_t cr3, uint64_t pid, const std::string &filename);
-
-  void onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64_t pid, uint64_t ReturnCode);
-
-  void inc_state_read(S2EExecutionState *state, uint64_t length);
-
-  void inc_state_write(S2EExecutionState *state, uint64_t length);
-
  public:
   FileIOTracker(S2E *s2e) : Plugin(s2e) {
   }
@@ -63,8 +44,47 @@ class FileIOTracker : public Plugin {
 
   void initialize();
 
-  void createNewTraceFile(bool append);
+  void createNewFile(bool append);
 
+};
+
+class FileIOTrackerState : public PluginState {
+ private:
+  uint64_t m_read;
+  uint64_t m_write;
+//  File *m_file;
+
+ public:
+  FileIOTrackerState() {
+    m_read = 0;
+    m_write = 0;
+  }
+
+  virtual ~FileIOTrackerState();
+
+  static PluginState *factory(Plugin*, S2EExecutionState*) {
+    return new FileIOTrackerState();
+  }
+
+  FileIOTrackerState *clone() const {
+    return new FileIOTrackerState(*this);
+  }
+
+  void inc_read(uint64_t length) {
+    m_read += length;
+  }
+
+  void inc_write(uint64_t length) {
+    m_write += length;
+  }
+
+  int get_read() {
+    return m_read;
+  }
+
+  int get_write() {
+    return m_write;
+  }
 };
 
 } // namespace plugins
