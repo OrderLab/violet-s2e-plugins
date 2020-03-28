@@ -35,7 +35,7 @@ void FileIOTracker::initialize() {
 
   is_trackSize = s2e()->getConfig()->getBool(getConfigKey() + ".trackBufferSize");
   targetProcessName = s2e()->getConfig()->getString(getConfigKey() + ".targetProcessName");
- // targetProcessStart = false;
+//  targetProcessStart = false;
 }
 
 
@@ -70,12 +70,12 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   if (fd == std_in || fd == std_out || fd == std_err)
     return;
 
-  // lplplplplplplplplplplplplpplplplpplp
+  // 
 
   if (eax == read) {
-    getInfoStream() << "r " << edx << " [";
-    //getWarningsStream() << linuxMonitor->getPid(state) << " " << linuxMonitor->getTid(state) << "]\n";
-    getWarningsStream() << linuxMonitor->getPid(state) << " " << targetProcessPid << "]\n";
+//    getInfoStream() << "r " << edx << " [";
+//    //getWarningsStream() << linuxMonitor->getPid(state) << " " << linuxMonitor->getTid(state) << "]\n";
+//    getWarningsStream() << linuxMonitor->getPid(state) << " " << targetProcessPid << "]\n";
     inc_state_read(state, is_trackSize ? edx : 1);
   } else if (eax == write) {
 //    getInfoStream() << "w " << edx << "\n";
@@ -94,9 +94,9 @@ void FileIOTracker::onProcessLoad(S2EExecutionState *state, uint64_t cr3, uint64
 
 void FileIOTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64_t pid, uint64_t ReturnCode) {
   //getWarningsStream(state) << "!!!!!! on process exit got!!!!! " << pid << "\n";
-  if (pid == targetProcessPid) {
-//    targetProcessStart = false;
-  }
+//  if (pid == targetProcessPid) {
+////    targetProcessStart = false;
+//  }
 }
 
 void FileIOTracker::inc_state_read(S2EExecutionState *state, uint64_t length) {
