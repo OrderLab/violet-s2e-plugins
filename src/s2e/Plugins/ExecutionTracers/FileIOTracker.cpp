@@ -29,13 +29,13 @@ void FileIOTracker::initialize() {
   s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
       sigc::mem_fun(*this, &FileIOTracker::onTranslateSpecialInstructionEnd));
 
-  monitor = s2e()->getPlugin<LinuxMonitor>();
-  monitor->onProcessLoad.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessLoad));
-  monitor->onProcessUnload.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessUnload));
+  linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
+  linuxMonitor->onProcessLoad.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessLoad));
+  linuxMonitor->onProcessUnload.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessUnload));
 
-  trackSize = s2e()->getConfig()->getBool(getConfigKey() + ".trackBufferSize");
+  is_trackSize = s2e()->getConfig()->getBool(getConfigKey() + ".trackBufferSize");
   targetProcessName = s2e()->getConfig()->getString(getConfigKey() + ".targetProcessName");
-  targetProcessStart = false;
+ // targetProcessStart = false;
 }
 
 
@@ -62,7 +62,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
     return;
   }
 
-  if (!targetProcessStart) return;
+  if (targetProcessPid != linuxMonitor->getPid(state)) return;
 
   if (eax >> 1) return; // not read or write
 //  if (!((fd ? --fd : fd) >> 1)) return; // filter when fd is stdin/out/err
@@ -70,20 +70,16 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   if (fd == std_in || fd == std_out || fd == std_err)
     return;
 
-  // 139392, 139692
-  // 5986257  write 139362
-  // 710 109,
-  // 708 43, 709 43
-  // State[0]  read 47  write 3
-  // State[0]  read 48  write 3
+  // lplplplplplplplplplplplplpplplplpplp
 
   if (eax == read) {
     getInfoStream() << "r " << edx << " [";
-    getWarningsStream() << monitor->getPid(state) << " " << monitor->getTid(state) << "]\n";
-    inc_state_read(state, trackSize ? edx : 1);
+    //getWarningsStream() << linuxMonitor->getPid(state) << " " << linuxMonitor->getTid(state) << "]\n";
+    getWarningsStream() << linuxMonitor->getPid(state) << " " << targetProcessPid << "]\n";
+    inc_state_read(state, is_trackSize ? edx : 1);
   } else if (eax == write) {
 //    getInfoStream() << "w " << edx << "\n";
-    inc_state_write(state, trackSize ? edx : 1);
+    inc_state_write(state, is_trackSize ? edx : 1);
   }
 
 }
@@ -92,14 +88,14 @@ void FileIOTracker::onProcessLoad(S2EExecutionState *state, uint64_t cr3, uint64
   //getWarningsStream(state) << "!!!!!! on process load got!!!!! " << filename << " --- " << pid << "\n";
   if (targetProcessName == filename) {
     targetProcessPid = pid;
-    targetProcessStart = true;
+//    targetProcessStart = true;
   }
 }
 
 void FileIOTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64_t pid, uint64_t ReturnCode) {
   //getWarningsStream(state) << "!!!!!! on process exit got!!!!! " << pid << "\n";
   if (pid == targetProcessPid) {
-    targetProcessStart = false;
+//    targetProcessStart = false;
   }
 }
 

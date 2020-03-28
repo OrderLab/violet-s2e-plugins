@@ -29,12 +29,13 @@ class FileIOTracker : public Plugin {
   std::string m_fileName;
   FILE *m_traceFile;
   map<uint64_t, pair<uint64_t, uint64_t>> m_rw; // first read, second write
-  bool trackSize;
+  bool is_trackSize;
   string targetProcessName;
   uint64_t targetProcessPid;
-  bool targetProcessStart;
+//  bool targetProcessStart;
 
-  LinuxMonitor *monitor;
+  LinuxMonitor *linuxMonitor;
+
 
   void onTranslateSpecialInstructionEnd(
       ExecutionSignal *signal,
