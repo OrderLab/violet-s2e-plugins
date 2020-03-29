@@ -128,7 +128,7 @@ class LatencyTrackerState : public PluginState {
     bool traceFunction;
     int roundId;
     uint64_t activityId;
-    uint64_t m_tid;
+    uint64_t m_Pid;
 
 
     LatencyTrackerState() {

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <stdio.h>
 
+
 using namespace std;
 namespace s2e {
 namespace plugins {
@@ -150,17 +151,14 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
         return;
       }
-//      if (!temp) {
-//        temp++;
-//        break;
-//      }
 
       plgState->traceFunction = true;
       plgState->roundId++;
-      plgState->m_tid = linuxMonitor->getTid(state);
-//      getInfoStream(state) << "Record trace result for process " << plgState->m_tid << "\n";
-      if (plgState->getRegState())
+      plgState->m_Pid = linuxMonitor->getPid(state);
+//      getInfoStream(state) << "Record trace result for process " << hexval(plgState->m_Pid) << "\n";
+      if (plgState->getRegState()) {
         return;
+      }
 
       callSignal = functionMonitor->getCallSignal(state, -1, -1);
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
@@ -168,7 +166,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       break;
     case TRACK_END:
       plgState->activityId = 0;
-      plgState->m_tid = 0;
+      plgState->m_Pid = 0;
 //      getInfoStream(state) << "Tracing end\n";
       plgState->traceFunction = false;
       if (!plgState->callList.empty()) {
@@ -185,7 +183,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if ((is_profileAll || plgState->traceFunction) && (linuxMonitor->getTid(state) == plgState->m_tid)) {
+  if ((is_profileAll || plgState->traceFunction) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
     clock_t begin = clock();
     uint64_t addr = state->regs()->getPc();
     // Read the return address of the function call
@@ -207,10 +205,10 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
     }
     double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
     plgState->latencyList.push_back(execution_time);
+
     plgState->functionStart(addr, returnAddress);
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
-
   }
 }
 
