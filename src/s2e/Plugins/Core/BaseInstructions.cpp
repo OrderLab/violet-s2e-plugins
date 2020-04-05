@@ -230,7 +230,6 @@ void BaseInstructions::isSymbolic(S2EExecutionState *state) {
         if (!isa<ConstantExpr>(ret)) {
             result = 1;
         }
-        getDebugStream(state) << "address " << hexval(state->mem()->getHostAddress(address,VirtualAddress)+i) << "; the ret is " << (*ret) << "\n";
     }
 
     getDebugStream(state) << "Testing whether data at " << hexval(address) << " and size " << size

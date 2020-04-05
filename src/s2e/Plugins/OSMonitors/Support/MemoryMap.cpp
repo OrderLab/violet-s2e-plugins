@@ -334,7 +334,7 @@ void MemoryMap::addRegion(S2EExecutionState *state, uint64_t pid, uint64_t addre
     DECLARE_PLUGINSTATE(MemoryMapState, state);
     pid = m_monitor->translatePid(pid, address);
     if (end < address)
-        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
+//        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(pid, address, end, type);
 }
 
@@ -373,7 +373,7 @@ void MemoryMap::onLinuxMemoryMap(S2EExecutionState *state, uint64_t pid, uint64_
 
     DECLARE_PLUGINSTATE(MemoryMapState, state);
     if (end < start)
-        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
+//        s2e()->getExecutor()->terminateState(*state, "the region address is invalid");
     plgState->addRegion(pid, start, end, type);
 }
 

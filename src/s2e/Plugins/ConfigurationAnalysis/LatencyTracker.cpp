@@ -14,7 +14,6 @@
 #include <string.h>
 #include <stdio.h>
 
-
 using namespace std;
 namespace s2e {
 namespace plugins {
@@ -152,10 +151,13 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         return;
       }
 
-      plgState->traceFunction = true;
-      plgState->roundId++;
-      plgState->m_Pid = linuxMonitor->getPid(state);
-//      getInfoStream(state) << "Record trace result for process " << hexval(plgState->m_Pid) << "\n";
+//      plgState->traceFunction = true;
+//TODO:ADD PID CHECKING
+      if(plgState->m_Pid == 0)
+        plgState->m_Pid = linuxMonitor->getPid(state);
+      plgState->threadList.push_back(linuxMonitor->getTid(state));
+
+      getInfoStream(state) << "Record trace result for pid = " << (plgState->m_Pid) << "; tid = "<< (linuxMonitor->getTid(state))<< "\n";
       if (plgState->getRegState()) {
         return;
       }
@@ -165,17 +167,30 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       plgState->setRegState(true);
       break;
     case TRACK_END:
-      plgState->activityId = 0;
-      plgState->m_Pid = 0;
-//      getInfoStream(state) << "Tracing end\n";
-      plgState->traceFunction = false;
-      if (!plgState->callList.empty()) {
-        plgState->callLists.push_back(plgState->callList);
-        plgState->callList.clear();
+
+      uint64_t current_tid = linuxMonitor->getTid(state);
+      getInfoStream(state) << "Tracing end tid = "<< current_tid <<"\n";
+//      plgState->traceFunction = false;
+      vector<uint64_t >::iterator index = std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid);
+      if(index != plgState->threadList.end()) {
+        plgState->IdList[current_tid] = 0;
+        plgState->threadList.erase(index);
+        if(plgState->threadList.empty())
+          plgState->m_Pid = 0;
+      } else {
+        getWarningsStream(state) << "can't find trace start for tid = " << current_tid << "\n";
+        return;
       }
-      if (!plgState->returnList.empty()) {
-        plgState->returnLists.push_back(plgState->returnList);
-        plgState->returnList.clear();
+
+      if (!plgState->callList[current_tid].empty()) {
+        plgState->callLists.push_back(plgState->callList[current_tid]);
+        plgState->callList[current_tid].clear();
+      }
+      if (!plgState->returnList[current_tid].empty()) {
+        plgState->returnLists.push_back(plgState->returnList[current_tid]);
+        std::vector<RetSignal> returnList = plgState->returnLists.back();
+
+        plgState->returnList[current_tid].clear();
       }
       break;
   }
@@ -183,12 +198,18 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if ((is_profileAll || plgState->traceFunction) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
+  if ((is_profileAll || !plgState->threadList.empty()) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
     clock_t begin = clock();
     uint64_t addr = state->regs()->getPc();
     // Read the return address of the function call
     uint64_t esp;
     uint64_t returnAddress;
+    uint64_t current_tid = linuxMonitor->getTid(state);
+
+    if(std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid) == plgState->threadList.end()) {
+      return;
+    }
+
     bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
     if (!ok) {
       getWarningsStream(state) << "Function call with symbolic ESP!\n"
@@ -205,8 +226,7 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
     }
     double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
     plgState->latencyList.push_back(execution_time);
-
-    plgState->functionStart(addr, returnAddress);
+    plgState->functionStart(addr, returnAddress,current_tid);
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
   }
@@ -214,9 +234,10 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
 
 void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if (is_profileAll || plgState->traceFunction) {
+  if (is_profileAll || !plgState->threadList.empty()) {
     uint64_t esp;
     uint64_t returnAddress;
+    uint64_t current_tid = linuxMonitor->getTid(state);
     clock_t begin = clock();
     uint64_t addr = state->regs()->getPc();
     bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
@@ -236,7 +257,7 @@ void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
     }
     double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
     plgState->latencyList.push_back(execution_time);
-    plgState->functionEnd(addr, returnAddress);
+    plgState->functionEnd(addr, returnAddress,current_tid);
   }
 }
 
@@ -265,16 +286,17 @@ void LatencyTracker::calculateLatency(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
 
   for (auto callList = plgState->callLists.rbegin(); callList != plgState->callLists.rend(); ++callList) {
-    std::vector<struct returnRecord> returnList = plgState->returnLists.back();
+    std::vector<RetSignal> returnList = plgState->returnLists.back();
     plgState->returnLists.pop_back();
     for (std::vector<struct returnRecord>::iterator returnSignal = returnList.begin();
         returnSignal != returnList.end(); ++returnSignal) {
       if (!callList->count(returnSignal->returnAddress))
-        break;
-      struct callRecord &record = (*callList)[returnSignal->returnAddress];
-      record.execution_time = double(returnSignal->end - record.begin) / (CLOCKS_PER_SEC / 1000);
-      record.retAddress = returnSignal->functionEnd;
+        continue;
+      CallSignal &callRecord = (*callList)[returnSignal->returnAddress];
+      callRecord.execution_time = double(returnSignal->end - callRecord.begin) / (CLOCKS_PER_SEC / 1000);
+      callRecord.retAddress = returnSignal->functionEnd;
     }
+
   }
 }
 
@@ -420,13 +442,13 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
     std::size_t rindex = vp.first.rfind("_");
     pair.constraintsIndex = std::stoi(vp.first.substr(1, (index-1)));
     constraints_name = vp.first.substr(index+1,(rindex-index-1));
-//    getInfoStream(state) << "the constraints name is " << constraints_name << "\n";
+    getInfoStream(state) << "the constraints name is " << constraints_name << " the target configuration is " << configuration <<"\n";
     if(!strcmp(constraints_name.c_str(),configuration)) {
       pair.is_target = true;
     } else {
       pair.is_target = false;
     }
-    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
+//    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
     for (unsigned i = 0; i < vp.second.size(); ++i) {
       valueAsInt |= ((int64_t) vp.second[i] << (i*8));
     }

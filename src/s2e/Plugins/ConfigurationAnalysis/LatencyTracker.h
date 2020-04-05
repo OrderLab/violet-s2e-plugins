@@ -18,11 +18,12 @@
 #include <mutex>
 #include <s2e/Plugins/OSMonitors/OSMonitor.h>
 #include <s2e/Plugins/ExecutionTracers/TestCaseGenerator.h>
+#include <s2e/Plugins/OSMonitors/Linux/LinuxMonitor.h>
 
 namespace s2e {
 namespace plugins {
 
-struct callRecord {
+typedef struct callRecord {
   uint64_t address; // function starting address
   uint64_t retAddress;
   uint64_t callerAddress;    // caller's starting address
@@ -30,13 +31,13 @@ struct callRecord {
   uint64_t acticityId; // unique id for each function call
   uint64_t parentId;
   clock_t begin;
-};
+}CallSignal;
 
-struct returnRecord {
+typedef struct returnRecord {
   uint64_t returnAddress;
   uint64_t functionEnd;
   clock_t end;
-};
+}RetSignal;
 
 class LatencyTracker : public Plugin, public IPluginInvoker {
   S2E_PLUGIN
@@ -53,7 +54,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     // @deprecated
     uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
-    OSMonitor* linuxMonitor;
+    LinuxMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
     char configuration[1024]; // IMPORTANT!! the definition must be consistent with the mysqld
 
@@ -63,7 +64,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       int64_t value;
       bool is_target;
     };
-//    int temp;
+
     typedef std::pair<std::string, std::vector<unsigned char>> VarValuePair;
     typedef std::vector<VarValuePair> ConcreteInputs;
 
@@ -76,7 +77,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       is_profileAll = false;
       traceSyscall = false;
       traceInstruction = false;
-//      temp = 0;
+
     }
 
     ~LatencyTracker();
@@ -102,8 +103,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void matchParent(S2EExecutionState *state);
     void calculateLatency(S2EExecutionState *state);
 
-    void printCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
-    bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
+    void printCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
+    bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
     void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs);
     void flush();
 };
@@ -118,17 +119,20 @@ class LatencyTrackerState : public PluginState {
     bool regiesterd;
 
   public:
-    std::vector<std::map<uint64_t,  struct callRecord>> callLists;
-    std::vector<std::vector<struct returnRecord>> returnLists;
-    std::map<uint64_t,  struct callRecord> callList;
-    std::vector<struct returnRecord> returnList;
-    //            std::vector<uint64_t> keyStack;
+    typedef std::map<uint64_t, CallSignal> FunctionCallRecord;
+    typedef std::vector<RetSignal> FunctionRetRecord;
+    typedef uint64_t ThreadId;
+
+    std::vector<FunctionCallRecord> callLists;
+    std::vector<std::vector<RetSignal>> returnLists;
+    std::map <ThreadId, FunctionCallRecord> callList;
+    std::map <ThreadId, FunctionRetRecord> returnList;
     std::vector<double> latencyList;
     int syscallCount;
     bool traceFunction;
-    int roundId;
-    uint64_t activityId;
+    std::map <ThreadId, uint64_t > IdList;
     uint64_t m_Pid;
+    std::vector<uint64_t> threadList;
 
 
     LatencyTrackerState() {
@@ -138,8 +142,6 @@ class LatencyTrackerState : public PluginState {
       loadBias = 0;
       regiesterd = false;
       traceFunction = false;
-      roundId = 0;
-      activityId = 0;
     }
 
     virtual ~LatencyTrackerState() {}
@@ -180,28 +182,26 @@ class LatencyTrackerState : public PluginState {
       return regiesterd;
     }
 
-    void functionStart(uint64_t addr,uint64_t returnAddress) {
+    void functionStart(uint64_t addr,uint64_t returnAddress, uint64_t threadId) {
       struct callRecord record;
       record.callerAddress = 0;
       record.address = addr;
       record.begin = clock();
       record.execution_time = 0;
       record.retAddress = addr;
-      record.acticityId = activityId;
-      activityId++;
-      callList[returnAddress] = record;
-
+      record.acticityId = IdList[threadId];
+      IdList[threadId]++;
+      callList[threadId][returnAddress] = record;
     }
 
-    void functionEnd(uint64_t functionEnd,uint64_t returnAddress) {
+    void functionEnd(uint64_t functionEnd,uint64_t returnAddress, uint64_t threadId) {
       struct returnRecord record;
       record.returnAddress = returnAddress;
       record.functionEnd = functionEnd;
       record.end = clock();
-      returnList.push_back(record);
+      returnList[threadId].push_back(record);
       return;
     }
-
 };
 
 } // namespace plugins
