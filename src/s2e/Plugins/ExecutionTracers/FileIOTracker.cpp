@@ -28,16 +28,41 @@ void FileIOTracker::initialize() {
   createNewTraceFile(false);
   s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
       sigc::mem_fun(*this, &FileIOTracker::onTranslateSpecialInstructionEnd));
+  s2e()->getCorePlugin()->onException.connect(
+      sigc::mem_fun(*this, &FileIOTracker::onException));
 
   linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
   linuxMonitor->onProcessLoad.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessLoad));
   linuxMonitor->onProcessUnload.connect(sigc::mem_fun(*this, &FileIOTracker::onProcessUnload));
+  linuxMonitor->onTrap.connect(sigc::mem_fun(*this, &FileIOTracker::onTrap));
+  linuxMonitor->onSegFault.connect(sigc::mem_fun(*this, &FileIOTracker::onSegFault));
 
   is_trackSize = s2e()->getConfig()->getBool(getConfigKey() + ".trackBufferSize");
   targetProcessName = s2e()->getConfig()->getString(getConfigKey() + ".targetProcessName");
 //  targetProcessStart = false;
+
+  if (is_trackSize) {
+    fprintf(m_traceFile, "Track total buffer size read or written\n");
+  } else {
+    fprintf(m_traceFile, "Track # of read or write syscalls\n");
+  }
+
 }
 
+void FileIOTracker::onException(S2EExecutionState *state, unsigned exception_idx, uint64_t pc) {
+  //if (targetProcessPid != linuxMonitor->getPid(state)) return;
+  //getWarningsStream(state) << "on exception 🌹  " << exception_idx << "\n";
+}
+
+void FileIOTracker::onTrap(S2EExecutionState *state, uint64_t pid, uint64_t pc, int trapnr) {
+  //if (targetProcessPid != pid) return;
+  //getWarningsStream(state) << targetProcessPid << "pid " << pid << " on trap 🍺 trap number " << trapnr << "\n";
+}
+
+void FileIOTracker::onSegFault(S2EExecutionState *state, uint64_t pid, uint64_t pc) {
+  //if (targetProcessPid != pid) return;
+  //getWarningsStream(state) << "pid " << pid << " on segfault 🈹️ \n";
+}
 
 void FileIOTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,
                                                      TranslationBlock *tb, uint64_t pc,
@@ -70,7 +95,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   if (fd == std_in || fd == std_out || fd == std_err)
     return;
 
-  // 
+  //
 
   if (eax == read) {
 //    getInfoStream() << "r " << edx << " [";
@@ -85,7 +110,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 }
 
 void FileIOTracker::onProcessLoad(S2EExecutionState *state, uint64_t cr3, uint64_t pid, const std::string &filename) {
-  //getWarningsStream(state) << "!!!!!! on process load got!!!!! " << filename << " --- " << pid << "\n";
+  getWarningsStream(state) << "!!!!!! on process load got!!!!! " << filename << " --- " << pid << "\n";
   if (targetProcessName == filename) {
     targetProcessPid = pid;
 //    targetProcessStart = true;
@@ -100,18 +125,24 @@ void FileIOTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint
 }
 
 void FileIOTracker::inc_state_read(S2EExecutionState *state, uint64_t length) {
+  	getWarningsStream(state) << "increase read\n";
   if (m_rw.find(state->getID()) != m_rw.end()) {
+  	getWarningsStream(state) << "old\n";
     m_rw.at(state->getID()).first += length;
   } else {
+  	getWarningsStream(state) << "new\n";
     m_rw.insert(pair<uint64_t, pair<uint64_t, uint64_t>>(
         state->getID(), pair<uint64_t, uint64_t>(length, 0)));
   }
 }
 
 void FileIOTracker::inc_state_write(S2EExecutionState *state, uint64_t length) {
+  	getWarningsStream(state) << "increase write\n";
   if (m_rw.find(state->getID()) != m_rw.end()) {
+  	getWarningsStream(state) << "old\n";
     m_rw.at(state->getID()).second += length;
   } else {
+  	getWarningsStream(state) << "new\n";
     m_rw.insert(pair<uint64_t, pair<uint64_t, uint64_t>>(
         state->getID(), pair<uint64_t, uint64_t>(0, length)));
   }
@@ -133,6 +164,7 @@ void FileIOTracker::createNewTraceFile(bool append) {
 
 FileIOTracker::~FileIOTracker() {
   // write results to FileIOTracker.result
+  getWarningsStream() << "destuctor\n" ;
   map<uint64_t, pair<uint64_t, uint64_t>>::iterator itr;
   for (itr = m_rw.begin(); itr != m_rw.end(); ++itr) {
     unsigned long state = itr->first, read = itr->second.first, write = itr->second.second;

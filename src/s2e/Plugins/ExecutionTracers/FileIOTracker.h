@@ -47,8 +47,17 @@ class FileIOTracker : public Plugin {
 
   void onSyscall(S2EExecutionState *state, uint64_t pc);
 
+  void onException(S2EExecutionState *state, unsigned exception_idx, uint64_t pc);
 
- //(void, )
+//  sigc::signal<void, S2EExecutionState *, uint64_t, /* pid */
+//               uint64_t,                            /* pc */
+//               int /* trapnr */>
+//      onTrap;
+
+  void onTrap(S2EExecutionState *state, uint64_t pid, uint64_t pc, int trapnr);
+
+  void onSegFault(S2EExecutionState *state, uint64_t pid, uint64_t pc);
+
   void onProcessLoad(S2EExecutionState *state, uint64_t cr3, uint64_t pid, const std::string &filename);
 
   void onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64_t pid, uint64_t ReturnCode);
