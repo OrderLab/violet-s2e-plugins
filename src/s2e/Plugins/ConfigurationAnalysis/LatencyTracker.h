@@ -70,7 +70,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
 
   public:
     enum enum_track_command {
-      TRACK_START,TRACK_END
+      TRACK_START,TRACK_END,LOG_ADDRESS
     };
 
     LatencyTracker(S2E *s2e) : Plugin(s2e) {
@@ -142,6 +142,16 @@ class LatencyTrackerState : public PluginState {
       loadBias = 0;
       regiesterd = false;
       traceFunction = false;
+    }
+
+    LatencyTrackerState(const LatencyTrackerState &trackerState) {
+      loadEntry = trackerState.loadEntry;
+      loadBias = trackerState.loadBias;
+      regiesterd = trackerState.regiesterd;
+      callLists = trackerState.callLists;
+      returnLists = trackerState.returnLists;
+      syscallCount = trackerState.syscallCount;
+      m_Pid = 0;
     }
 
     virtual ~LatencyTrackerState() {}

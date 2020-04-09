@@ -124,7 +124,8 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
     uint64_t guestDataSize) {
   enum_track_command command;
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-
+  uint64_t current_tid;
+  vector<uint64_t >::iterator index;
   if (is_profileAll) {
     return;
   }
@@ -143,6 +144,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
     exit(-1);
   }
   switch (command) {
+    case LOG_ADDRESS:
+      getInfoStream(state) << "Get the address at pc = " << hexval(state->regs()->getPc())<< '\n';
+      break;
     case TRACK_START:
       functionMonitor = s2e()->getPlugin<FunctionMonitor>();
       linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
@@ -151,13 +155,10 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         return;
       }
 
-//      plgState->traceFunction = true;
-//TODO:ADD PID CHECKING
+    //TODO:ADD PID CHECKING
       if(plgState->m_Pid == 0)
         plgState->m_Pid = linuxMonitor->getPid(state);
       plgState->threadList.push_back(linuxMonitor->getTid(state));
-
-      getInfoStream(state) << "Record trace result for pid = " << (plgState->m_Pid) << "; tid = "<< (linuxMonitor->getTid(state))<< "\n";
       if (plgState->getRegState()) {
         return;
       }
@@ -166,12 +167,15 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
       plgState->setRegState(true);
       break;
-    case TRACK_END:
 
-      uint64_t current_tid = linuxMonitor->getTid(state);
-      getInfoStream(state) << "Tracing end tid = "<< current_tid <<"\n";
-//      plgState->traceFunction = false;
-      vector<uint64_t >::iterator index = std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid);
+    case TRACK_END:
+      current_tid = linuxMonitor->getTid(state);
+      if (plgState->m_Pid == 0) {
+        getWarningsStream(state) << "no pid\n";
+        return;
+      }
+
+      index = std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid);
       if(index != plgState->threadList.end()) {
         plgState->IdList[current_tid] = 0;
         plgState->threadList.erase(index);
@@ -193,6 +197,8 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         plgState->returnList[current_tid].clear();
       }
       break;
+
+
   }
 }
 

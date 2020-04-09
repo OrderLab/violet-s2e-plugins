@@ -899,14 +899,14 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState *state, uint64_t opcod
         }
 
         case BASE_S2E_BEGIN_ATOMIC: { /* s2e_begin_atomic */
-            getDebugStream(state) << "BaseInstructions: s2e_begin_atomic\n";
+//            getDebugStream(state) << "BaseInstructions: s2e_begin_atomic\n";
             state->setStateSwitchForbidden(true);
             break;
         }
 
         case BASE_S2E_END_ATOMIC: { /* s2e_end_atomic */
             state->setStateSwitchForbidden(false);
-            getDebugStream(state) << "BaseInstructions: s2e_end_atomic\n";
+//            getDebugStream(state) << "BaseInstructions: s2e_end_atomic\n";
             break;
         }
 
