@@ -44,11 +44,11 @@ void FileIOTracker::initialize() {
 //  uint64_t b = is_trackSize ? 1 : 0;
 //  fwrite(&b, sizeof(uint64_t), 1, m_traceFile);
 
-//  if (is_trackSize) {
-//    fprintf(m_traceFile, "Track total buffer size read or written\n");
-//  } else {
-//    fprintf(m_traceFile, "Track # of read or write syscalls\n");
-//  }
+  if (is_trackSize) {
+    //fprintf(m_traceFile, "Track read / write bytes\n");
+  } else {
+    //fprintf(m_traceFile, "Track read / write counts\n");
+  }
 
 }
 
@@ -129,7 +129,7 @@ void FileIOTracker::updateMap(S2EExecutionState *state, uint64_t r_w) {
       m_rw.insert(pair<uint64_t, pair<uint64_t, uint64_t>>(
           state->getID(), pair<uint64_t, uint64_t>(n, 0)));
     }
-  } else if (r_w == write){
+  } else if (r_w == write) {
     uint64_t n = is_trackSize ? plgState->get_write_bytes() : plgState->get_write_cnt();
     if (m_rw.find(state->getID()) != m_rw.end()) {
       m_rw.at(state->getID()).second = n;
@@ -173,6 +173,13 @@ void FileIOTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint
 //  }
 //}
 
+void FileIOTracker::getIOTracer(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(FileIOTrackerState, state);
+  fprintf(m_traceFile, "State[%d] read %lu bytes through %lu read calls, write %lu bytes through %lu write calls\n",
+      state->getID(), plgState->get_read_bytes(), plgState->get_read_cnt(), plgState->get_write_bytes(),
+      plgState->get_write_cnt());
+}
+
 void FileIOTracker::createNewTraceFile(bool append) {
   if (append) {
     assert(m_fileName.size() > 0);
@@ -188,12 +195,12 @@ void FileIOTracker::createNewTraceFile(bool append) {
 }
 
 FileIOTracker::~FileIOTracker() {
-  // write results to FileIOTracker.result
-  map<uint64_t, pair<uint64_t, uint64_t>>::iterator itr;
-  for (itr = m_rw.begin(); itr != m_rw.end(); ++itr) {
-    unsigned long state = itr->first, read = itr->second.first, write = itr->second.second;
-    fprintf(m_traceFile, "State[%lu]  read %lu  write %lu\n", state, read, write);
-  }
+//  // write results to FileIOTracker.result
+//  map<uint64_t, pair<uint64_t, uint64_t>>::iterator itr;
+//  for (itr = m_rw.begin(); itr != m_rw.end(); ++itr) {
+//    unsigned long state = itr->first, read = itr->second.first, write = itr->second.second;
+//    fprintf(m_traceFile, "State[%lu]  read %lu  write %lu\n", state, read, write);
+//  }
   if (!m_traceFile) return;
   fclose (m_traceFile);
   m_traceFile = nullptr;
