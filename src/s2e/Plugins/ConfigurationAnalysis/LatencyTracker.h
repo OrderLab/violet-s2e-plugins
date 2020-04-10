@@ -127,7 +127,7 @@ class LatencyTrackerState : public PluginState {
     std::vector<std::vector<RetSignal>> returnLists;
     std::map <ThreadId, FunctionCallRecord> callList;
     std::map <ThreadId, FunctionRetRecord> returnList;
-    std::vector<double> latencyList;
+//    std::vector<double> latencyList;
     int syscallCount;
     bool traceFunction;
     std::map <ThreadId, uint64_t > IdList;
