@@ -127,8 +127,7 @@ add_library(
 
     #Viotlet
     s2e/Plugins/ConfigurationAnalysis/LatencyTracker.cpp
-	#s2e/Plugins/ExecutionTracers/FileIOTracer.cpp
-	s2e/Plugins/ExecutionTracers/FileIOTracker.cpp
+    s2e/Plugins/ConfigurationAnalysis/FileIOTracker.cpp
 
      ${PROTO_SRCS} ${PROTO_HDRS}
 )

@@ -12,7 +12,7 @@
 #include <s2e/CorePlugin.h>
 #include <s2e/Plugin.h>
 #include <s2e/S2EExecutionState.h>
-#include "ExecutionTracer.h"
+//#include "ExecutionTracer.h"
 
 #include <map>
 #include <iterator>
@@ -72,6 +72,8 @@ class FileIOTracker : public Plugin {
   void initialize();
 
   void createNewTraceFile(bool append);
+
+  void getIOTracer(S2EExecutionState *state);
 
 };
 

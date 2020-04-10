@@ -16,6 +16,7 @@
 #include <s2e/Plugins/OSMonitors/Windows/WindowsCrashMonitor.h>
 #include <s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h>
 #include <s2e/Plugins/ConfigurationAnalysis/LatencyTracker.h>
+#include <s2e/Plugins/ConfigurationAnalysis/FileIOTracker.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>
@@ -161,6 +162,7 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
     Plugin *plugin;
     LatencyTracker *iface = nullptr;
+    FileIOTracker *io_tracker = nullptr;
 
     ConcreteInputs inputs;
     bool success = state->getSymbolicSolution(inputs);
@@ -185,6 +187,21 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
                                  "; the number of instruction "<< iface->getScore(state) <<"; the number of syscall " << iface->getSyscall(state) <<";\n";
             iface->getFunctionTracer(state, inputs);
         }
+    }
+
+    plugin = s2e()->getPlugin("FileIOTracker");
+    if (!plugin) {
+      getWarningsStream(state) << "ERROR: FileIOTracker could not find plugin " << "\n";
+      getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+    } else {
+      io_tracker = dynamic_cast<FileIOTracker *>(plugin);
+
+      if (!io_tracker) {
+        getWarningsStream(state) << "ERROR: FileIOTracker is not an instance of IPluginInvoker\n";
+        getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+      } else {
+        io_tracker->getIOTracer(state);
+      }
     }
 
     if (type & TC_LOG) {
