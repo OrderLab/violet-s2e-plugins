@@ -56,7 +56,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     FunctionMonitor* functionMonitor;
     LinuxMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
-    char configuration[1024]; // IMPORTANT!! the definition must be consistent with the mysqld
+    char configuration[1024] = "\0"; // IMPORTANT!! the definition must be consistent with the mysqld
 
     struct concreteConstraint {
       int id;
@@ -70,7 +70,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
 
   public:
     enum enum_track_command {
-      TRACK_START,TRACK_END,LOG_ADDRESS
+      TRACK_START,TRACK_END,LOG_ADDRESS,TRACKE
     };
 
     LatencyTracker(S2E *s2e) : Plugin(s2e) {
@@ -98,7 +98,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc, special_instruction_t type);
     void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
     void onException (ExecutionSignal* signal, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc, unsigned exception_idx);
-    void onSyscall(S2EExecutionState* state, uint64_t pc, uint32_t sysc_number);
+    void onSyscall(S2EExecutionState* state, uint64_t pc);
     void getFunctionTracer(S2EExecutionState* state,const ConcreteInputs &inputs);
     void matchParent(S2EExecutionState *state);
     void calculateLatency(S2EExecutionState *state);
@@ -117,8 +117,13 @@ class LatencyTrackerState : public PluginState {
     uint64_t loadEntry;
     uint64_t loadBias;
     bool regiesterd;
+    uint64_t m_read_cnt;
+    uint64_t m_read_bytes;
+    uint64_t m_write_cnt;
+    uint64_t m_write_bytes;
 
-  public:
+
+ public:
     typedef std::map<uint64_t, CallSignal> FunctionCallRecord;
     typedef std::vector<RetSignal> FunctionRetRecord;
     typedef uint64_t ThreadId;
@@ -127,9 +132,8 @@ class LatencyTrackerState : public PluginState {
     std::vector<std::vector<RetSignal>> returnLists;
     std::map <ThreadId, FunctionCallRecord> callList;
     std::map <ThreadId, FunctionRetRecord> returnList;
-//    std::vector<double> latencyList;
     int syscallCount;
-    bool traceFunction;
+    bool traceFileIO;
     std::map <ThreadId, uint64_t > IdList;
     uint64_t m_Pid;
     std::vector<uint64_t> threadList;
@@ -140,8 +144,11 @@ class LatencyTrackerState : public PluginState {
       syscallCount = 0;
       loadEntry = 0;
       loadBias = 0;
+      m_read_cnt = 0;
+      m_read_bytes = 0;
+      m_write_cnt = 0;
+      m_write_bytes = 0;
       regiesterd = false;
-      traceFunction = false;
     }
 
     LatencyTrackerState(const LatencyTrackerState &trackerState) {
@@ -151,7 +158,13 @@ class LatencyTrackerState : public PluginState {
       callLists = trackerState.callLists;
       returnLists = trackerState.returnLists;
       syscallCount = trackerState.syscallCount;
-      m_Pid = 0;
+      m_Pid = trackerState.m_Pid;
+      threadList = trackerState.threadList;
+      IdList = trackerState.IdList;
+      m_read_cnt = trackerState.m_read_cnt;
+      m_read_bytes = trackerState.m_read_bytes;
+      m_write_bytes = trackerState.m_write_bytes;
+      m_write_cnt = trackerState.m_write_cnt;
     }
 
     virtual ~LatencyTrackerState() {}
@@ -192,17 +205,44 @@ class LatencyTrackerState : public PluginState {
       return regiesterd;
     }
 
-    void functionStart(uint64_t addr,uint64_t returnAddress, uint64_t threadId) {
-      struct callRecord record;
-      record.callerAddress = 0;
-      record.address = addr;
-      record.begin = clock();
-      record.execution_time = 0;
-      record.retAddress = addr;
-      record.acticityId = IdList[threadId];
-      IdList[threadId]++;
-      callList[threadId][returnAddress] = record;
+    void inc_read(uint64_t size) {
+      ++m_read_cnt;
+      m_read_bytes += size;
     }
+
+    void inc_write(uint64_t size) {
+      ++m_write_cnt;
+      m_write_bytes += size;
+    }
+
+
+    uint64_t get_read_cnt() {
+      return m_read_cnt;
+    }
+
+    uint64_t get_read_bytes() {
+      return m_read_bytes;
+    }
+
+    uint64_t get_write_cnt() {
+      return m_write_cnt;
+    }
+
+    uint64_t get_write_bytes() {
+      return m_write_bytes;
+    }
+
+    void functionStart(uint64_t addr,uint64_t returnAddress, uint64_t threadId) {
+        struct callRecord record;
+        record.callerAddress = 0;
+        record.address = addr;
+        record.begin = clock();
+        record.execution_time = 0;
+        record.retAddress = addr;
+        record.acticityId = IdList[threadId];
+        IdList[threadId]++;
+        callList[threadId][returnAddress] = record;
+      }
 
     void functionEnd(uint64_t functionEnd,uint64_t returnAddress, uint64_t threadId) {
       struct returnRecord record;

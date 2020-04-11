@@ -34,14 +34,13 @@ void LatencyTracker::initialize() {
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
 
-  s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
-      sigc::mem_fun(*this, &LatencyTracker::onTranslateInstruction));
   if (traceSyscall) {
-    s2e()->getCorePlugin()->onTranslateSoftInterruptStart.connect(
-        sigc::mem_fun(*this, &LatencyTracker::onException));
     s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
         sigc::mem_fun(*this, &LatencyTracker::onTranslateSpecialInstructionEnd));
   }
+
+  s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
+      sigc::mem_fun(*this, &LatencyTracker::onTranslateInstruction));
 }
 
 void LatencyTracker::createNewTraceFile(bool append) {
@@ -66,7 +65,7 @@ void LatencyTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S
     TranslationBlock *tb, uint64_t pc,
     special_instruction_t type) {
   if (type == SYSENTER || type == SYSCALL) {
-    signal->connect(sigc::mem_fun(*this, &LatencyTracker::onSysenter));
+    signal->connect(sigc::mem_fun(*this, &LatencyTracker::onSyscall));
   }
 }
 
@@ -77,9 +76,57 @@ void LatencyTracker::onException(ExecutionSignal *signal, S2EExecutionState *sta
     //s2e()->getDebugStream() << "Syscall " << hexval(pc) << " from the exception "<<"\n";
     uint64_t int_num = 0;
     int_num = int_num & 0xffffffff;
-    onSyscall(state, pc, int_num);
   }
   return;
+}
+void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  plgState->incrementInstructionCount();
+}
+
+void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
+  DECLARE_PLUGINSTATE (LatencyTrackerState, state);
+
+  uint64_t eax, edx, fd;
+  uint64_t  read = 0, write = 1, pread64 = 17, pwrite64 = 18; // 0x0 sys_read, 0x1 sys_write
+  uint64_t std_in = 0, std_out = 1, std_err = 2;
+
+  if (plgState->m_Pid != linuxMonitor->getPid(state))
+    return;
+  uint64_t current_tid = linuxMonitor->getTid(state);
+  if(std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid) == plgState->threadList.end()) {
+    return;
+  }
+
+  // get value from eax and edx register
+  bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &edx, sizeof(edx));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDI]), &fd, sizeof(fd));
+  if (!ok) {
+    getWarningsStream(state) << "couldn't read from registers\n"; // << "\n";
+    return;
+  }
+
+  if (fd == std_in || fd == std_out || fd == std_err)
+    return;
+//  eax == read ||
+//  eax == write ||
+  if ( eax == pread64) {
+    plgState->inc_read(edx);
+  } else if ( eax == pwrite64) {
+    plgState->inc_write(edx);
+  }
+  return;
+}
+
+int LatencyTracker::getScore(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  return plgState->getInstructionCount();
+}
+
+int LatencyTracker::getSyscall(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  return plgState->syscallCount;
 }
 
 void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
@@ -92,7 +139,6 @@ void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
   if (entryPoint && traceInstruction) {
     signal->connect(sigc::mem_fun(*this, &LatencyTracker::onInstructionExecution));
   }
-
 
   if (is_profileAll) {
     if (plgState->getRegState()) {
@@ -165,6 +211,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
       callSignal = functionMonitor->getCallSignal(state, -1, -1);
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
+      if (traceSyscall) {
+        plgState->traceFileIO = true;
+      }
       plgState->setRegState(true);
       break;
 
@@ -173,6 +222,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       if (plgState->m_Pid == 0) {
         getWarningsStream(state) << "no pid\n";
         return;
+      }
+      if (traceSyscall) {
+        plgState->traceFileIO = false;
       }
 
       index = std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid);
@@ -329,6 +381,8 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
     return;
   }
 //  getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
+  getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt()
+                       << " read calls, write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls\n";
   functionForEach(state);
   if (!printTrace) {
     writeTestCaseToTrace(state, inputs);
@@ -349,32 +403,6 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
         writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
     }
   }
-}
-
-void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  plgState->incrementInstructionCount();
-}
-
-void LatencyTracker::onSysenter(S2EExecutionState *state, uint64_t pc) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  plgState->syscallCount++;
-}
-
-void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc, uint32_t sysc_number) {
-  DECLARE_PLUGINSTATE (LatencyTrackerState, state);
-  plgState->syscallCount++;
-  return;
-}
-
-int LatencyTracker::getScore(S2EExecutionState *state) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  return plgState->getInstructionCount();
-}
-
-int LatencyTracker::getSyscall(S2EExecutionState *state) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  return plgState->syscallCount;
 }
 
 void LatencyTracker::flush() {
