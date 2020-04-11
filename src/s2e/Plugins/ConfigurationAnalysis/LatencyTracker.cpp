@@ -257,7 +257,6 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
   if ((is_profileAll || !plgState->threadList.empty()) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
-//    clock_t begin = clock();
     uint64_t addr = state->regs()->getPc();
     // Read the return address of the function call
     uint64_t esp;
@@ -282,8 +281,7 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
         << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
       return;
     }
-//    double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
-//    plgState->latencyList.push_back(execution_time);
+
     plgState->functionStart(addr, returnAddress,current_tid);
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
@@ -296,7 +294,7 @@ void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
     uint64_t esp;
     uint64_t returnAddress;
     uint64_t current_tid = linuxMonitor->getTid(state);
-//    clock_t begin = clock();
+
     uint64_t addr = state->regs()->getPc();
     bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
     if (!ok) {
@@ -313,8 +311,7 @@ void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
         << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
       return;
     }
-//    double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
-//    plgState->latencyList.push_back(execution_time);
+
     plgState->functionEnd(addr, returnAddress,current_tid);
   }
 }
@@ -361,28 +358,16 @@ void LatencyTracker::calculateLatency(S2EExecutionState *state) {
 void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteInputs &inputs) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
   assert(plgState->callLists.size() == plgState->returnLists.size());
-
+  getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt()
+                       << " read calls, write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls\n";
   calculateLatency(state);
   matchParent(state);
-//  double avg_latency = 0;
-//  int count = 0;
-//  while (!plgState->latencyList.empty()) {
-//    double &latency = plgState->latencyList.back();
-//    avg_latency += latency;
-//    count++;
-//    plgState->latencyList.pop_back();
-//
-//  }
-//  if (count > 0) {
-//    avg_latency /= (double) count;
-//  }
+
   if (!state->is_valid) {
     getInfoStream(state) << "Invalid path\n";
     return;
   }
-//  getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
-  getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt()
-                       << " read calls, write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls\n";
+
   functionForEach(state);
   if (!printTrace) {
     writeTestCaseToTrace(state, inputs);
