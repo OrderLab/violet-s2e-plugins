@@ -49,8 +49,9 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     FILE *m_symbolicTraceFile;
     bool is_profileAll;
     bool printTrace;
-    bool traceSyscall;
+    bool traceFileIO;
     bool traceInstruction;
+    bool traceFunctionCall;
     // @deprecated
     uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
@@ -70,12 +71,12 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
 
   public:
     enum enum_track_command {
-      TRACK_START,TRACK_END,LOG_ADDRESS,TRACKE
+      TRACK_START,TRACK_END,LOG_ADDRESS
     };
 
     LatencyTracker(S2E *s2e) : Plugin(s2e) {
       is_profileAll = false;
-      traceSyscall = false;
+      traceFileIO = false;
       traceInstruction = false;
 
     }
@@ -86,8 +87,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void createNewTraceFile(bool append);
     void onTranslateInstruction(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc);
     void onInstructionExecution(S2EExecutionState *state, uint64_t pc);
-    int getScore(S2EExecutionState *state);
-    int getCount(S2EExecutionState *state);
+    int getInstructionNumber(S2EExecutionState *state);
     int getSyscall(S2EExecutionState *state);
     void setEntryPoint(S2EExecutionState *state, uint64_t entry_point,
         uint64_t load_bias=0);
@@ -97,7 +97,6 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void onSysenter(S2EExecutionState* state, uint64_t pc);
     void onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc, special_instruction_t type);
     void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
-    void onException (ExecutionSignal* signal, S2EExecutionState* state, TranslationBlock *tb, uint64_t pc, unsigned exception_idx);
     void onSyscall(S2EExecutionState* state, uint64_t pc);
     void getFunctionTracer(S2EExecutionState* state,const ConcreteInputs &inputs);
     void matchParent(S2EExecutionState *state);
@@ -121,6 +120,10 @@ class LatencyTrackerState : public PluginState {
     uint64_t m_read_bytes;
     uint64_t m_write_cnt;
     uint64_t m_write_bytes;
+    uint64_t m_pread_cnt;
+    uint64_t m_pread_bytes;
+    uint64_t m_pwrite_cnt;
+    uint64_t m_pwrite_bytes;
 
 
  public:
@@ -133,7 +136,6 @@ class LatencyTrackerState : public PluginState {
     std::map <ThreadId, FunctionCallRecord> callList;
     std::map <ThreadId, FunctionRetRecord> returnList;
     int syscallCount;
-    bool traceFileIO;
     std::map <ThreadId, uint64_t > IdList;
     uint64_t m_Pid;
     std::vector<uint64_t> threadList;
@@ -148,6 +150,10 @@ class LatencyTrackerState : public PluginState {
       m_read_bytes = 0;
       m_write_cnt = 0;
       m_write_bytes = 0;
+      m_pread_cnt = 0;
+      m_pread_bytes = 0;
+      m_pwrite_cnt = 0;
+      m_pwrite_bytes = 0;
       regiesterd = false;
     }
 
@@ -165,6 +171,10 @@ class LatencyTrackerState : public PluginState {
       m_read_bytes = trackerState.m_read_bytes;
       m_write_bytes = trackerState.m_write_bytes;
       m_write_cnt = trackerState.m_write_cnt;
+      m_pread_cnt = trackerState.m_pread_cnt;
+      m_pread_bytes = trackerState.m_pread_bytes;
+      m_pwrite_cnt = trackerState.m_pwrite_cnt;
+      m_pwrite_bytes = trackerState.m_pwrite_bytes;
     }
 
     virtual ~LatencyTrackerState() {}
@@ -230,6 +240,32 @@ class LatencyTrackerState : public PluginState {
 
     uint64_t get_write_bytes() {
       return m_write_bytes;
+    }
+
+    uint64_t get_pread_cnt() {
+      return m_pread_cnt;
+    }
+
+    uint64_t get_pread_bytes() {
+      return m_pread_bytes;
+    }
+
+    uint64_t get_pwrite_cnt() {
+      return m_pwrite_cnt;
+    }
+
+    uint64_t get_pwrite_bytes() {
+      return m_pwrite_bytes;
+    }
+
+    void inc_pread(uint64_t size) {
+      ++m_pread_cnt;
+      m_pread_bytes += size;
+    }
+
+    void inc_pwrite(uint64_t size) {
+      ++m_pwrite_cnt;
+      m_pwrite_bytes += size;
     }
 
     void functionStart(uint64_t addr,uint64_t returnAddress, uint64_t threadId) {
