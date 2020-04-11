@@ -45,9 +45,9 @@ void FileIOTracker::initialize() {
 //  fwrite(&b, sizeof(uint64_t), 1, m_traceFile);
 
   if (is_trackSize) {
-    //fprintf(m_traceFile, "Track read / write bytes\n");
+    fprintf(m_traceFile, "Track read / write bytes\n");
   } else {
-    //fprintf(m_traceFile, "Track read / write counts\n");
+    fprintf(m_traceFile, "Track read / write counts\n");
   }
 
 }
@@ -80,7 +80,7 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   DECLARE_PLUGINSTATE(FileIOTrackerState, state);
 
   uint64_t eax, edx, fd;
-  uint64_t read = 0, write = 1; // 0x0 sys_read, 0x1 sys_write
+  uint64_t read = 0, write = 1, pread64 = 17, pwrite64 = 18; // 0x0 sys_read, 0x1 sys_write
   uint64_t std_in = 0, std_out = 1, std_err = 2;
 
   // get value from eax and edx register
@@ -94,7 +94,6 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
   if (targetProcessPid != linuxMonitor->getPid(state)) return;
 
-  if (eax >> 1) return; // not read or write
 //  if (!((fd ? --fd : fd) >> 1)) return; // filter when fd is stdin/out/err
 
   if (fd == std_in || fd == std_out || fd == std_err)
@@ -102,14 +101,14 @@ void FileIOTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
   //
 
-  if (eax == read) {
+  if (eax == read || eax == pread64) {
     plgState->inc_read(edx);
     updateMap(state, read);
 //    getInfoStream() << "r " << edx << " [";
 //    //getWarningsStream() << linuxMonitor->getPid(state) << " " << linuxMonitor->getTid(state) << "]\n";
 //    getWarningsStream() << linuxMonitor->getPid(state) << " " << targetProcessPid << "]\n";
 //    inc_state_read(state, is_trackSize ? edx : 1);
-  } else if (eax == write) {
+  } else if (eax == write || eax == pwrite64) {
     plgState->inc_write(edx);
     updateMap(state, write);
 //    getInfoStream() << "w " << edx << "\n";
