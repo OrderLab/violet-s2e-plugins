@@ -27,21 +27,22 @@ S2E_DEFINE_PLUGIN(LatencyTracker,                   // Plugin class
 void LatencyTracker::initialize() {
   createNewTraceFile(false);
   is_profileAll = s2e()->getConfig()->getBool(getConfigKey() + ".profileAllFunction");
-  traceSyscall = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
+  traceFileIO = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
   traceInstruction = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstruction");
+  traceFunctionCall = s2e()->getConfig()->getBool(getConfigKey() + ".traceFunctionCall");
   // entryAddress config is deprecated: now we can directly calculate the
   // static entry address from the load bias
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
 
-  s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
-      sigc::mem_fun(*this, &LatencyTracker::onTranslateInstruction));
-  if (traceSyscall) {
-    s2e()->getCorePlugin()->onTranslateSoftInterruptStart.connect(
-        sigc::mem_fun(*this, &LatencyTracker::onException));
+
+  if (traceFileIO) {
     s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
         sigc::mem_fun(*this, &LatencyTracker::onTranslateSpecialInstructionEnd));
   }
+
+  s2e()->getCorePlugin()->onTranslateInstructionStart.connect(
+      sigc::mem_fun(*this, &LatencyTracker::onTranslateInstruction));
 }
 
 void LatencyTracker::createNewTraceFile(bool append) {
@@ -50,13 +51,16 @@ void LatencyTracker::createNewTraceFile(bool append) {
     assert(m_symbolicFileName.size() > 0);
     m_traceFile = fopen(m_fileName.c_str(), "a");
     m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"a");
+    m_ioTraceFile = fopen(m_ioFileName.c_str(),"a");
   } else {
     m_fileName = s2e()->getOutputFilename("LatencyTracer.dat");
     m_traceFile = fopen(m_fileName.c_str(), "wb");
     m_symbolicFileName = s2e()->getOutputFilename("ConstraintTracer.dat");
     m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"wb");
+    m_ioFileName = s2e()->getOutputFilename("IOTracer.dat");
+    m_ioTraceFile = fopen(m_ioFileName.c_str(), "wb");
   }
-  if (!m_traceFile || !m_symbolicTraceFile) {
+  if (!m_traceFile || !m_symbolicTraceFile || !m_ioTraceFile) {
     getWarningsStream() << "Could not create LatencyTracer.dat" << '\n';
     exit(-1);
   }
@@ -66,20 +70,63 @@ void LatencyTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S
     TranslationBlock *tb, uint64_t pc,
     special_instruction_t type) {
   if (type == SYSENTER || type == SYSCALL) {
-    signal->connect(sigc::mem_fun(*this, &LatencyTracker::onSysenter));
+    signal->connect(sigc::mem_fun(*this, &LatencyTracker::onSyscall));
   }
 }
 
-void LatencyTracker::onException(ExecutionSignal *signal, S2EExecutionState *state, TranslationBlock *tb,
-    uint64_t pc, unsigned exception_idx) {
-  if (exception_idx == 0x80) {
-    // get eax register
-    //s2e()->getDebugStream() << "Syscall " << hexval(pc) << " from the exception "<<"\n";
-    uint64_t int_num = 0;
-    int_num = int_num & 0xffffffff;
-    onSyscall(state, pc, int_num);
+void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  plgState->incrementInstructionCount();
+}
+
+void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
+  DECLARE_PLUGINSTATE (LatencyTrackerState, state);
+
+  uint64_t eax, edx, fd;
+  uint64_t read = 0, write = 1, pread64 = 17, pwrite64 = 18; // 0x0 sys_read, 0x1 sys_write
+  uint64_t std_in = 0, std_out = 1, std_err = 2;
+
+  if (plgState->m_Pid != linuxMonitor->getPid(state))
+    return;
+  uint64_t current_tid = linuxMonitor->getTid(state);
+  if(std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid) == plgState->threadList.end()) {
+    return;
+  }
+
+  // get value from eax and edx register
+  bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &edx, sizeof(edx));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDI]), &fd, sizeof(fd));
+  if (!ok) {
+    getWarningsStream(state) << "couldn't read from registers\n"; // << "\n";
+    return;
+  }
+
+  if (fd == std_in || fd == std_out || fd == std_err)
+    return;
+
+  if (eax == pread64) {
+    plgState->inc_pread(edx);
+  } else if (eax == pwrite64) {
+    plgState->inc_pwrite(edx);
+  }
+
+  if (eax == read) {
+    plgState->inc_read(edx);
+  } else if (eax == write) {
+    plgState->inc_write(edx);
   }
   return;
+}
+
+int LatencyTracker::getInstructionNumber(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  return plgState->getInstructionCount();
+}
+
+int LatencyTracker::getSyscall(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  return plgState->syscallCount;
 }
 
 void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
@@ -92,7 +139,6 @@ void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
   if (entryPoint && traceInstruction) {
     signal->connect(sigc::mem_fun(*this, &LatencyTracker::onInstructionExecution));
   }
-
 
   if (is_profileAll) {
     if (plgState->getRegState()) {
@@ -124,7 +170,8 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
     uint64_t guestDataSize) {
   enum_track_command command;
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-
+  uint64_t current_tid;
+  vector<uint64_t >::iterator index;
   if (is_profileAll) {
     return;
   }
@@ -143,6 +190,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
     exit(-1);
   }
   switch (command) {
+    case LOG_ADDRESS:
+      getInfoStream(state) << "Get the address at pc = " << hexval(state->regs()->getPc())<< '\n';
+      break;
     case TRACK_START:
       functionMonitor = s2e()->getPlugin<FunctionMonitor>();
       linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
@@ -150,47 +200,68 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
         getWarningsStream(state) << "ERROR: Function Monitor plugin could not be found  \n";
         return;
       }
-//      if (!temp) {
-//        temp++;
-//        break;
-//      }
 
-      plgState->traceFunction = true;
-      plgState->roundId++;
-      plgState->m_tid = linuxMonitor->getTid(state);
-//      getInfoStream(state) << "Record trace result for process " << plgState->m_tid << "\n";
-      if (plgState->getRegState())
+    //TODO:ADD PID CHECKING
+      if(plgState->m_Pid == 0)
+        plgState->m_Pid = linuxMonitor->getPid(state);
+      plgState->threadList.push_back(linuxMonitor->getTid(state));
+      if (plgState->getRegState()) {
         return;
+      }
 
       callSignal = functionMonitor->getCallSignal(state, -1, -1);
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
+
       plgState->setRegState(true);
       break;
+
     case TRACK_END:
-      plgState->activityId = 0;
-      plgState->m_tid = 0;
-//      getInfoStream(state) << "Tracing end\n";
-      plgState->traceFunction = false;
-      if (!plgState->callList.empty()) {
-        plgState->callLists.push_back(plgState->callList);
-        plgState->callList.clear();
+      current_tid = linuxMonitor->getTid(state);
+      if (plgState->m_Pid == 0) {
+        getWarningsStream(state) << "no pid\n";
+        return;
       }
-      if (!plgState->returnList.empty()) {
-        plgState->returnLists.push_back(plgState->returnList);
-        plgState->returnList.clear();
+
+      index = std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid);
+      if(index != plgState->threadList.end()) {
+        plgState->IdList[current_tid] = 0;
+        plgState->threadList.erase(index);
+        if(plgState->threadList.empty())
+          plgState->m_Pid = 0;
+      } else {
+        getWarningsStream(state) << "can't find trace start for tid = " << current_tid << "\n";
+        return;
+      }
+
+      if (!plgState->callList[current_tid].empty()) {
+        plgState->callLists.push_back(plgState->callList[current_tid]);
+        plgState->callList[current_tid].clear();
+      }
+      if (!plgState->returnList[current_tid].empty()) {
+        plgState->returnLists.push_back(plgState->returnList[current_tid]);
+        std::vector<RetSignal> returnList = plgState->returnLists.back();
+
+        plgState->returnList[current_tid].clear();
       }
       break;
+
+
   }
 }
 
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if ((is_profileAll || plgState->traceFunction) && (linuxMonitor->getTid(state) == plgState->m_tid)) {
-    clock_t begin = clock();
+  if ((is_profileAll || !plgState->threadList.empty()) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
     uint64_t addr = state->regs()->getPc();
     // Read the return address of the function call
     uint64_t esp;
     uint64_t returnAddress;
+    uint64_t current_tid = linuxMonitor->getTid(state);
+
+    if(std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid) == plgState->threadList.end()) {
+      return;
+    }
+
     bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
     if (!ok) {
       getWarningsStream(state) << "Function call with symbolic ESP!\n"
@@ -205,21 +276,20 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
         << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
       return;
     }
-    double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
-    plgState->latencyList.push_back(execution_time);
-    plgState->functionStart(addr, returnAddress);
+
+    plgState->functionStart(addr, returnAddress,current_tid);
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
-
   }
 }
 
 void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if (is_profileAll || plgState->traceFunction) {
+  if (is_profileAll || !plgState->threadList.empty()) {
     uint64_t esp;
     uint64_t returnAddress;
-    clock_t begin = clock();
+    uint64_t current_tid = linuxMonitor->getTid(state);
+
     uint64_t addr = state->regs()->getPc();
     bool ok = state->regs()->read(CPU_OFFSET(regs[R_ESP]), &esp, sizeof esp, false);
     if (!ok) {
@@ -236,9 +306,8 @@ void LatencyTracker::functionRetMonitor(S2EExecutionState *state) {
         << " CR3=" << hexval(state->regs()->getPageDir()) << '\n';
       return;
     }
-    double execution_time = double(clock() - begin) / (CLOCKS_PER_SEC / 1000);
-    plgState->latencyList.push_back(execution_time);
-    plgState->functionEnd(addr, returnAddress);
+
+    plgState->functionEnd(addr, returnAddress,current_tid);
   }
 }
 
@@ -267,16 +336,17 @@ void LatencyTracker::calculateLatency(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
 
   for (auto callList = plgState->callLists.rbegin(); callList != plgState->callLists.rend(); ++callList) {
-    std::vector<struct returnRecord> returnList = plgState->returnLists.back();
+    std::vector<RetSignal> returnList = plgState->returnLists.back();
     plgState->returnLists.pop_back();
     for (std::vector<struct returnRecord>::iterator returnSignal = returnList.begin();
         returnSignal != returnList.end(); ++returnSignal) {
       if (!callList->count(returnSignal->returnAddress))
-        break;
-      struct callRecord &record = (*callList)[returnSignal->returnAddress];
-      record.execution_time = double(returnSignal->end - record.begin) / (CLOCKS_PER_SEC / 1000);
-      record.retAddress = returnSignal->functionEnd;
+        continue;
+      CallSignal &callRecord = (*callList)[returnSignal->returnAddress];
+      callRecord.execution_time = double(returnSignal->end - callRecord.begin) / (CLOCKS_PER_SEC / 1000);
+      callRecord.retAddress = returnSignal->functionEnd;
     }
+
   }
 }
 
@@ -284,25 +354,21 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
   assert(plgState->callLists.size() == plgState->returnLists.size());
 
-  calculateLatency(state);
-  matchParent(state);
-  double avg_latency = 0;
-  int count = 0;
-  while (!plgState->latencyList.empty()) {
-    double &latency = plgState->latencyList.back();
-    avg_latency += latency;
-    count++;
-    plgState->latencyList.pop_back();
+  if (traceFileIO) {
+    writeIOToTrace(state);
+  }
 
-  }
-  if (count > 0) {
-    avg_latency /= (double) count;
-  }
+
+  if(!traceFunctionCall)
+    return;
+
   if (!state->is_valid) {
     getInfoStream(state) << "Invalid path\n";
     return;
   }
-  getInfoStream(state) << "avg latency is " << avg_latency <<"ms\n";
+
+  calculateLatency(state);
+  matchParent(state);
   functionForEach(state);
   if (!printTrace) {
     writeTestCaseToTrace(state, inputs);
@@ -323,32 +389,6 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
         writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
     }
   }
-}
-
-void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  plgState->incrementInstructionCount();
-}
-
-void LatencyTracker::onSysenter(S2EExecutionState *state, uint64_t pc) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  plgState->syscallCount++;
-}
-
-void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc, uint32_t sysc_number) {
-  DECLARE_PLUGINSTATE (LatencyTrackerState, state);
-  plgState->syscallCount++;
-  return;
-}
-
-int LatencyTracker::getScore(S2EExecutionState *state) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  return plgState->getInstructionCount();
-}
-
-int LatencyTracker::getSyscall(S2EExecutionState *state) {
-  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  return plgState->syscallCount;
 }
 
 void LatencyTracker::flush() {
@@ -422,23 +462,80 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
     std::size_t rindex = vp.first.rfind("_");
     pair.constraintsIndex = std::stoi(vp.first.substr(1, (index-1)));
     constraints_name = vp.first.substr(index+1,(rindex-index-1));
-//    getInfoStream(state) << "the constraints name is " << constraints_name << "\n";
+    getInfoStream(state) << "the constraints name is " << constraints_name << " the target configuration is " << configuration <<"\n";
     if(!strcmp(constraints_name.c_str(),configuration)) {
       pair.is_target = true;
     } else {
       pair.is_target = false;
     }
-    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
+//    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
+
     for (unsigned i = 0; i < vp.second.size(); ++i) {
       valueAsInt |= ((int64_t) vp.second[i] << (i*8));
     }
     pair.value = valueAsInt;
     pair.id = state_id;
+
     if (fwrite(&pair, sizeof(struct concreteConstraint), 1, m_symbolicTraceFile) != 1) {
       return ;
     }
+
+    size_t length = vp.second.size();
+    if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
+      return ;
+    }
+
+////    while (for i = 0; i < length; i++)
+////      if (fwrite(vp.second[i], 1, 1, m_symbolicTraceFile) != 1) {
+////        return ;
+////      }
+    if (fwrite(&vp.second[0], sizeof(vector<unsigned char>::value_type), length, m_symbolicTraceFile) != length) {
+      return ;
+    }
+
+    length = constraints_name.size();
+    getWarningsStream(state) << "the test leng is " << length << "\n";
+    if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
+      return ;
+    }
+    if (fwrite(constraints_name.c_str(), 1, length, m_symbolicTraceFile) != length) {
+      return ;
+    }
+    // getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
     getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
   }
+}
+
+void LatencyTracker::writeIOToTrace(S2EExecutionState *state) {
+
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+
+  assert(m_ioTraceFile);
+  int state_id = 0;
+  if (state) {
+    state_id = state->getID();
+  }
+
+  getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt() << " read call, "
+                       << "read " << plgState->get_pread_bytes() << " bytes through " << plgState->get_pread_cnt() << " pread calls, "
+                       << "write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls, "
+                       << "write " << plgState->get_pwrite_bytes() << " bytes through " << plgState->get_pwrite_cnt() << " pwrite calls\n" ;
+
+  struct ioRecord record;
+  record.id = state_id;
+  record.read_cnt = plgState->get_read_cnt();
+  record.read_bytes = plgState->get_read_bytes();
+  record.write_cnt = plgState->get_write_cnt();
+  record.write_bytes = plgState->get_write_bytes();
+  record.pread_cnt = plgState->get_pread_cnt();
+  record.pread_bytes = plgState->get_pread_bytes();
+  record.pwrite_cnt = plgState->get_pwrite_cnt();
+  record.pwrite_bytes = plgState->get_pwrite_bytes();
+
+  if (fwrite(&record, sizeof(struct ioRecord), 1, m_ioTraceFile) != 1) {
+    return ;
+  }
+
 }
 
 
@@ -455,3 +552,4 @@ LatencyTracker::~LatencyTracker() {
 
 } // namespace plugins
 } // namespace s2e
+
