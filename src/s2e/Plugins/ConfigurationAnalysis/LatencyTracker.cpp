@@ -485,23 +485,16 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
       return ;
     }
 
-////    while (for i = 0; i < length; i++)
-////      if (fwrite(vp.second[i], 1, 1, m_symbolicTraceFile) != 1) {
-////        return ;
-////      }
     if (fwrite(&vp.second[0], sizeof(vector<unsigned char>::value_type), length, m_symbolicTraceFile) != length) {
       return ;
     }
 
-    length = constraints_name.size();
-    getWarningsStream(state) << "the test leng is " << length << "\n";
     if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
       return ;
     }
     if (fwrite(constraints_name.c_str(), 1, length, m_symbolicTraceFile) != length) {
       return ;
     }
-    // getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
     getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
   }
 }
