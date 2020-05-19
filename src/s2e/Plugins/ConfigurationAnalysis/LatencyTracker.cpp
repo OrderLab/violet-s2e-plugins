@@ -494,7 +494,7 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
     }
 
     length = constraints_name.size();
-    getWarningsStream(state) << "the test leng is " << length << "\n";
+    //getWarningsStream(state) << "the test leng is " << length << "\n";
     if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
       return ;
     }
