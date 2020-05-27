@@ -51,13 +51,16 @@ void LatencyTracker::createNewTraceFile(bool append) {
     assert(m_symbolicFileName.size() > 0);
     m_traceFile = fopen(m_fileName.c_str(), "a");
     m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"a");
+    m_ioTraceFile = fopen(m_ioFileName.c_str(),"a");
   } else {
     m_fileName = s2e()->getOutputFilename("LatencyTracer.dat");
     m_traceFile = fopen(m_fileName.c_str(), "wb");
     m_symbolicFileName = s2e()->getOutputFilename("ConstraintTracer.dat");
     m_symbolicTraceFile = fopen(m_symbolicFileName.c_str(),"wb");
+    m_ioFileName = s2e()->getOutputFilename("IOTracer.dat");
+    m_ioTraceFile = fopen(m_ioFileName.c_str(), "wb");
   }
-  if (!m_traceFile || !m_symbolicTraceFile) {
+  if (!m_traceFile || !m_symbolicTraceFile || !m_ioTraceFile) {
     getWarningsStream() << "Could not create LatencyTracer.dat" << '\n';
     exit(-1);
   }
@@ -352,10 +355,7 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
   assert(plgState->callLists.size() == plgState->returnLists.size());
 
   if (traceFileIO) {
-    getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt() << " read call, "
-                          << "read " << plgState->get_pread_bytes() << " bytes through " << plgState->get_pread_cnt() << " pread calls, "
-                          << "write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls, "
-                          << "write " << plgState->get_pwrite_bytes() << " bytes through " << plgState->get_pwrite_cnt() << " pwrite calls\n" ;
+    writeIOToTrace(state);
   }
 
 
@@ -469,17 +469,74 @@ void LatencyTracker::writeTestCaseToTrace(S2EExecutionState *state, const Concre
       pair.is_target = false;
     }
 //    getInfoStream(state) << "the test configuration is " << constraints_name << "\n";
+
     for (unsigned i = 0; i < vp.second.size(); ++i) {
       valueAsInt |= ((int64_t) vp.second[i] << (i*8));
     }
     pair.value = valueAsInt;
     pair.id = state_id;
+
     if (fwrite(&pair, sizeof(struct concreteConstraint), 1, m_symbolicTraceFile) != 1) {
       return ;
     }
+
+    size_t length = vp.second.size();
+    if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
+      return ;
+    }
+
+////    while (for i = 0; i < length; i++)
+////      if (fwrite(vp.second[i], 1, 1, m_symbolicTraceFile) != 1) {
+////        return ;
+////      }
+    if (fwrite(&vp.second[0], sizeof(vector<unsigned char>::value_type), length, m_symbolicTraceFile) != length) {
+      return ;
+    }
+
+    length = constraints_name.size();
+    //getWarningsStream(state) << "the test leng is " << length << "\n";
+    if (fwrite(&length, sizeof(size_t), 1, m_symbolicTraceFile) != 1) {
+      return ;
+    }
+    if (fwrite(constraints_name.c_str(), 1, length, m_symbolicTraceFile) != length) {
+      return ;
+    }
+    // getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
     getInfoStream(state) << pair.id << " " << pair.constraintsIndex << " " << pair.value << " "<< pair.is_target << "\n";
   }
   flush();
+}
+
+void LatencyTracker::writeIOToTrace(S2EExecutionState *state) {
+
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+
+  assert(m_ioTraceFile);
+  int state_id = 0;
+  if (state) {
+    state_id = state->getID();
+  }
+
+  getInfoStream(state) << "read " << plgState->get_read_bytes() << " bytes through " << plgState->get_read_cnt() << " read call, "
+                       << "read " << plgState->get_pread_bytes() << " bytes through " << plgState->get_pread_cnt() << " pread calls, "
+                       << "write " << plgState->get_write_bytes() << " bytes through " << plgState->get_write_cnt()<< " write calls, "
+                       << "write " << plgState->get_pwrite_bytes() << " bytes through " << plgState->get_pwrite_cnt() << " pwrite calls\n" ;
+
+  struct ioRecord record;
+  record.id = state_id;
+  record.read_cnt = plgState->get_read_cnt();
+  record.read_bytes = plgState->get_read_bytes();
+  record.write_cnt = plgState->get_write_cnt();
+  record.write_bytes = plgState->get_write_bytes();
+  record.pread_cnt = plgState->get_pread_cnt();
+  record.pread_bytes = plgState->get_pread_bytes();
+  record.pwrite_cnt = plgState->get_pwrite_cnt();
+  record.pwrite_bytes = plgState->get_pwrite_bytes();
+
+  if (fwrite(&record, sizeof(struct ioRecord), 1, m_ioTraceFile) != 1) {
+    return ;
+  }
+
 }
 
 
@@ -496,3 +553,4 @@ LatencyTracker::~LatencyTracker() {
 
 } // namespace plugins
 } // namespace s2e
+

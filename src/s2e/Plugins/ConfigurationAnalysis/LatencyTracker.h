@@ -47,6 +47,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     FILE *m_traceFile;
     std::string m_symbolicFileName;
     FILE *m_symbolicTraceFile;
+    std::string m_ioFileName;
+    FILE *m_ioTraceFile;
     bool is_profileAll;
     bool printTrace;
     bool traceFileIO;
@@ -64,6 +66,18 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       int constraintsIndex;
       int64_t value;
       bool is_target;
+    };
+
+    struct ioRecord {
+      int id;
+      uint64_t read_cnt;
+      uint64_t read_bytes;
+      uint64_t write_cnt;
+      uint64_t write_bytes;
+      uint64_t pread_cnt;
+      uint64_t pread_bytes;
+      uint64_t pwrite_cnt;
+      uint64_t pwrite_bytes;
     };
 
     typedef std::pair<std::string, std::vector<unsigned char>> VarValuePair;
@@ -105,6 +119,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void printCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
     bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
     void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs);
+    void writeIOToTrace(S2EExecutionState *state);
     void flush();
 };
 
@@ -294,3 +309,4 @@ class LatencyTrackerState : public PluginState {
 } // namespace s2e
 
 #endif
+
