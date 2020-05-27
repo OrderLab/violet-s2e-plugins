@@ -349,7 +349,6 @@ void LatencyTracker::calculateLatency(S2EExecutionState *state) {
 
 void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteInputs &inputs) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  getInfoStream() << "the callList size = " << plgState->callLists.size() << " the return list size " << plgState->returnLists.size();
   assert(plgState->callLists.size() == plgState->returnLists.size());
 
   if (traceFileIO) {
