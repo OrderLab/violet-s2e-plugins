@@ -162,7 +162,7 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
     Plugin *plugin;
     LatencyTracker *iface = nullptr;
-    FileIOTracker *io_tracker = nullptr;
+    //FileIOTracker *io_tracker = nullptr;
 
     ConcreteInputs inputs;
     bool success = state->getSymbolicSolution(inputs);
@@ -189,6 +189,7 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
         }
     }
 
+    /*
     plugin = s2e()->getPlugin("FileIOTracker");
     if (!plugin) {
       getWarningsStream(state) << "ERROR: FileIOTracker could not find plugin " << "\n";
@@ -203,6 +204,7 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
         io_tracker->getIOTracer(state);
       }
     }
+    */
 
     if (type & TC_LOG) {
         writeSimpleTestCase(getDebugStream(state), inputs);
