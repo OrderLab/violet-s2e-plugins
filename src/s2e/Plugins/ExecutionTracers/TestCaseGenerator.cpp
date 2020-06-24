@@ -162,6 +162,7 @@ const ConcreteFileTemplates &TestCaseGenerator::getTemplates(S2EExecutionState *
 void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::string &prefix, TestCaseType type) {
     Plugin *plugin;
     LatencyTracker *iface = nullptr;
+    SyncTracker *sync_tracker = nullptr;
     //FileIOTracker *io_tracker = nullptr;
 
     ConcreteInputs inputs;
@@ -194,13 +195,13 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
       getWarningsStream(state) << "ERROR: SyncTracker could not find plugin " << "\n";
       getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
     } else {
-      io_tracker = dynamic_cast<FileIOTracker *>(plugin);
+      sync_tracker = dynamic_cast<sync_tracker *>(plugin);
 
-      if (!io_tracker) {
+      if (!sync_tracker) {
         getWarningsStream(state) << "ERROR: SyncTracker is not an instance of IPluginInvoker\n";
         getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
       } else {
-        io_tracker->getSyncTracer(state);
+        sync_tracker->getSyncTracer(state);
       }
     }
 
