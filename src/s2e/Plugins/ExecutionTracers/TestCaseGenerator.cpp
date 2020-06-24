@@ -189,6 +189,22 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
         }
     }
 
+    plugin = s2e()->getPlugin("SyncTracker");
+    if (!plugin) {
+      getWarningsStream(state) << "ERROR: SyncTracker could not find plugin " << "\n";
+      getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+    } else {
+      io_tracker = dynamic_cast<FileIOTracker *>(plugin);
+
+      if (!io_tracker) {
+        getWarningsStream(state) << "ERROR: SyncTracker is not an instance of IPluginInvoker\n";
+        getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
+      } else {
+        io_tracker->getSyncTracer(state);
+      }
+    }
+
+
     /*
     plugin = s2e()->getPlugin("FileIOTracker");
     if (!plugin) {

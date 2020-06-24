@@ -75,15 +75,15 @@ void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
   /* sys_futex 202
    * rdi = uaddr, rsi = op, rdx = val, r10 = utime, r8 = uaddr2, r9 = val3
-   * 2 operations, WAIT & WAKE
-   *
+   * 2 operations, PRIVATE WAIT (128) & WAKE (129)
+   * TODO count time etc.
    */
   uint64_t sys_futex_call = 202;
 
   // get value from eax and edx register
   bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
   if (!ok) {
-    getWarningsStream(state) << "couldn't read from eax registers\n";
+    getWarningsStream(state) << "couldn't read from eax register\n";
     return;
   }
   if (eax != sys_futex_call) return;
@@ -155,8 +155,9 @@ void SyncTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64
 //  }
 //}
 
-void SyncTracker::getIOTracer(S2EExecutionState *state) {
-//  DECLARE_PLUGINSTATE(SyncTrackerState, state);
+void SyncTracker::getSyncTracer(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(SyncTrackerState, state);
+  printf("State [%d] contains %d sys_futex operations\n", state->getID(), plgState->get_cnt());
 //  fprintf(m_traceFile, "State[%d] read %lu bytes through %lu read calls, write %lu bytes through %lu write calls\n",
 //          state->getID(), plgState->get_read_bytes(), plgState->get_read_cnt(), plgState->get_write_bytes(),
 //          plgState->get_write_cnt());
