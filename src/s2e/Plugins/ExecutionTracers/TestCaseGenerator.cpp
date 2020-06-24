@@ -196,7 +196,7 @@ void TestCaseGenerator::generateTestCases(S2EExecutionState *state, const std::s
       getWarningsStream(state) << "ERROR: SyncTracker could not find plugin " << "\n";
       getInfoStream(state) << "generating test case at address " << hexval(state->regs()->getPc()) << '\n';
     } else {
-      sync_tracker = dynamic_cast<sync_tracker *>(plugin);
+      sync_tracker = dynamic_cast<SyncTracker *>(plugin);
 
       if (!sync_tracker) {
         getWarningsStream(state) << "ERROR: SyncTracker is not an instance of IPluginInvoker\n";

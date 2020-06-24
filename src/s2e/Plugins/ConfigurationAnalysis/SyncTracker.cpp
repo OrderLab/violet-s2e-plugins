@@ -157,7 +157,7 @@ void SyncTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64
 
 void SyncTracker::getSyncTracer(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(SyncTrackerState, state);
-  printf("State [%d] contains %d sys_futex operations\n", state->getID(), plgState->get_cnt());
+  printf("State [%d] contains %lu sys_futex operations\n", state->getID(), plgState->get_cnt());
 //  fprintf(m_traceFile, "State[%d] read %lu bytes through %lu read calls, write %lu bytes through %lu write calls\n",
 //          state->getID(), plgState->get_read_bytes(), plgState->get_read_cnt(), plgState->get_write_bytes(),
 //          plgState->get_write_cnt());
