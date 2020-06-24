@@ -88,6 +88,7 @@ class SyncTrackerState : public PluginState {
 
   void inc_cnt() {
     ++futex_cnt;
+  }
 
 
 };
