@@ -50,17 +50,8 @@ class SyncTracker : public Plugin {
 
   void onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64_t pid, uint64_t ReturnCode);
 
-//  void inc_state_read(S2EExecutionState *state, uint64_t length);
-//
-//  void inc_state_write(S2EExecutionState *state, uint64_t length);
-
-//  void updateMap(S2EExecutionState *state, uint64_t r_w);
-
-  bool in_readSyscallList(uint64_t syscall_number);
-
-  bool in_writeSyscallList(uint64_t syscall_number);
-
-//  bool write(S2EExecutionState *state, uint64_t loadBias, struct callRecord *record);
+//  bool in_readSyscallList(uint64_t syscall_number);
+//  bool in_writeSyscallList(uint64_t syscall_number);
 
  public:
   SyncTracker(S2E *s2e) : Plugin(s2e) {
@@ -78,11 +69,11 @@ class SyncTracker : public Plugin {
 
 class SyncTrackerState : public PluginState {
  private:
-  uint64_t cnt;
+  uint64_t futex_cnt;
 
  public:
   SyncTrackerState() {
-    cnt = 0;
+    futex_cnt = 0;
   }
 
   virtual ~SyncTrackerState() {}
@@ -96,11 +87,10 @@ class SyncTrackerState : public PluginState {
   }
 
   void inc_cnt() {
-    ++cnt;
-  }
+    ++futex_cnt;
+
 
 };
-
 
 } // namespace plugins
 } // namespace s2e

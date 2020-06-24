@@ -67,25 +67,40 @@ void SyncTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EE
 
 void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
+  if (targetProcessPid != linuxMonitor->getPid(state)) return;
+
   DECLARE_PLUGINSTATE(SyncTrackerState, state);
 
-  uint64_t eax;
+  uint64_t eax, uaddr, op, val;//, utime, uaddr2, val3;
 
-  uint64_t sys_futex_call = 202; // rdi = uaddr, rsi = op, rdx = val, r10 = utime, r8 = uaddr2, r9 = val3
+  /* sys_futex 202
+   * rdi = uaddr, rsi = op, rdx = val, r10 = utime, r8 = uaddr2, r9 = val3
+   * 2 operations, WAIT & WAKE
+   *
+   */
+  uint64_t sys_futex_call = 202;
 
   // get value from eax and edx register
   bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
-//  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &edx, sizeof(edx));
-//  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDI]), &fd, sizeof(fd));
   if (!ok) {
-    getWarningsStream(state) << "couldn't read from registers\n"; // << "\n";
+    getWarningsStream(state) << "couldn't read from eax registers\n";
+    return;
+  }
+  if (eax != sys_futex_call) return;
+
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDI]), &uaddr, sizeof(uaddr));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_ESI]), &op, sizeof(op));
+  ok &= state->regs()->read(CPU_OFFSET(regs[R_EDX]), &val, sizeof(val));
+  if (!ok) {
+    getWarningsStream(state) << "couldn't read from registers\n";
     return;
   }
 
-  if (targetProcessPid != linuxMonitor->getPid(state)) return;
-  if (eax != 202) return;
-
   getWarningsStream(state) << "eax: " << eax << "\n";
+  getWarningsStream(state) << "uaddr: " << uaddr << "\n";
+  getWarningsStream(state) << "futex_op: " << op << "\n";
+  getWarningsStream(state) << "val: " << val << "\n";
+
   plgState->inc_cnt();
 
 }
