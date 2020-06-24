@@ -17,6 +17,7 @@
 #include <s2e/Plugins/ConfigurationAnalysis/InstructionTracker.h>
 #include <s2e/Plugins/ConfigurationAnalysis/LatencyTracker.h>
 #include <s2e/Plugins/ConfigurationAnalysis/FileIOTracker.h>
+#include <s2e/Plugins/ConfigurationAnalysis/SyncTracker.h>
 #include <s2e/S2E.h>
 #include <s2e/S2EExecutionState.h>
 #include <s2e/S2EExecutor.h>

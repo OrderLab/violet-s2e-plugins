@@ -90,6 +90,10 @@ class SyncTrackerState : public PluginState {
     ++futex_cnt;
   }
 
+  uint64_t get_cnt() {
+    return futex_cnt;
+  }
+
 
 };
 
