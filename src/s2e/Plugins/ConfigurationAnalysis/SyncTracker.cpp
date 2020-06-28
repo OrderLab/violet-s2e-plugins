@@ -96,10 +96,8 @@ void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
     return;
   }
 
-  getWarningsStream(state) << "eax: " << eax << "\n";
-  getWarningsStream(state) << "uaddr: " << uaddr << "\n";
-  getWarningsStream(state) << "futex_op: " << op << "\n";
-  getWarningsStream(state) << "val: " << val << "\n";
+  getWarningsStream(state) << "eax: " << eax << ", " << "uaddr: " << uaddr << ", "
+                            << "futex_op: " << op << ", " << "val: " << val << "\n";
 
   plgState->inc_cnt();
 
