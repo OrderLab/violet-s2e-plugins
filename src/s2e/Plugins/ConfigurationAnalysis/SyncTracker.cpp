@@ -96,6 +96,10 @@ void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
     return;
   }
 
+  // TODO trace duration time for each lock (identified by uaddr, track duration)
+
+
+  // msg for debug use
   getWarningsStream(state) << "eax: " << eax << ", " << "uaddr: " << uaddr << ", "
                             << "futex_op: " << op << ", " << "val: " << val << "\n";
 
@@ -156,6 +160,7 @@ void SyncTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64
 void SyncTracker::getSyncTracer(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(SyncTrackerState, state);
   printf("State [%d] contains %lu sys_futex operations\n", state->getID(), plgState->get_cnt());
+  fprintf(m_traceFile, "State [%d] contains %lu sys_futex operations\n", state->getID(), plgState->get_cnt());
 //  fprintf(m_traceFile, "State[%d] read %lu bytes through %lu read calls, write %lu bytes through %lu write calls\n",
 //          state->getID(), plgState->get_read_bytes(), plgState->get_read_cnt(), plgState->get_write_bytes(),
 //          plgState->get_write_cnt());
@@ -176,12 +181,6 @@ void SyncTracker::createNewTraceFile(bool append) {
 }
 
 SyncTracker::~SyncTracker() {
-//  // write results to SyncTracker.result
-//  map<uint64_t, pair<uint64_t, uint64_t>>::iterator itr;
-//  for (itr = m_rw.begin(); itr != m_rw.end(); ++itr) {
-//    unsigned long state = itr->first, read = itr->second.first, write = itr->second.second;
-//    fprintf(m_traceFile, "State[%lu]  read %lu  write %lu\n", state, read, write);
-//  }
   if (!m_traceFile) return;
   fclose (m_traceFile);
   m_traceFile = nullptr;
