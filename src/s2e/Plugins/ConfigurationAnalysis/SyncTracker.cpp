@@ -76,7 +76,6 @@ void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   /* sys_futex 202
    * rdi = uaddr, rsi = op, rdx = val, r10 = utime, r8 = uaddr2, r9 = val3
    * 2 operations, PRIVATE WAIT (128) & WAKE (129)
-   * TODO count time etc.
    */
   uint64_t sys_futex_call = 202;
 
@@ -96,14 +95,26 @@ void SyncTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
     return;
   }
 
-  // TODO trace duration time for each lock (identified by uaddr, track duration)
-
-
   // msg for debug use
   getWarningsStream(state) << "eax: " << eax << ", " << "uaddr: " << uaddr << ", "
                             << "futex_op: " << op << ", " << "val: " << val << "\n";
 
-  plgState->inc_cnt();
+
+  plgState->inc_futex_cnt();
+//  if (plgState->is_new_futex_word(uaddr)) {
+//    plgState->add_futex_word(uaddr);
+//  }
+
+  if (op == 128) { // private wait op
+    if (plgState->is_new_futex_word(uaddr)) {
+      plgState->add_futex_word(uaddr);
+    }
+    plgState->inc_futex_wait_cnt();
+    plgState->update_futex_wait(uaddr);
+  } else if (op == 129) { // private wake op
+    plgState->inc_futex_wake_cnt();
+    plgState->update_futex_wake(uaddr);
+  }
 
 }
 
@@ -122,48 +133,17 @@ void SyncTracker::onProcessUnload(S2EExecutionState *state, uint64_t cr3, uint64
 //  }
 }
 
-//bool SyncTracker::in_readSyscallList(uint64_t syscall_number) {
-//  for (auto it = readSyscallList.begin(); it != readSyscallList.end(); ++it) {
-//    if (*it == syscall_number)
-//      return true;
-//  }
-//  return false;
-//}
-//
-//bool SyncTracker::in_writeSyscallList(uint64_t syscall_number){
-//  for (auto it = writeSyscallList.begin(); it != writeSyscallList.end(); ++it) {
-//    if (*it == syscall_number)
-//      return true;
-//  }
-//  return false;
-//}
-
-
-//void SyncTracker::inc_state_read(S2EExecutionState *state, uint64_t length) {
-//  if (m_rw.find(state->getID()) != m_rw.end()) {
-//    m_rw.at(state->getID()).first += length;
-//  } else {
-//    m_rw.insert(pair<uint64_t, pair<uint64_t, uint64_t>>(
-//        state->getID(), pair<uint64_t, uint64_t>(length, 0)));
-//  }
-//}
-//
-//void SyncTracker::inc_state_write(S2EExecutionState *state, uint64_t length) {
-//  if (m_rw.find(state->getID()) != m_rw.end()) {
-//    m_rw.at(state->getID()).second += length;
-//  } else {
-//    m_rw.insert(pair<uint64_t, pair<uint64_t, uint64_t>>(
-//        state->getID(), pair<uint64_t, uint64_t>(0, length)));
-//  }
-//}
-
 void SyncTracker::getSyncTracer(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(SyncTrackerState, state);
-  printf("State [%d] contains %lu sys_futex operations\n", state->getID(), plgState->get_cnt());
-  fprintf(m_traceFile, "State [%d] contains %lu sys_futex operations\n", state->getID(), plgState->get_cnt());
-//  fprintf(m_traceFile, "State[%d] read %lu bytes through %lu read calls, write %lu bytes through %lu write calls\n",
-//          state->getID(), plgState->get_read_bytes(), plgState->get_read_cnt(), plgState->get_write_bytes(),
-//          plgState->get_write_cnt());
+
+  printf("State [%d] contains %lu sys_futex operations (%lu wait, %lu wake ops), %f s\n",
+      state->getID(), plgState->get_futex_cnt(), plgState->get_futex_wait_cnt(), plgState->get_futex_wake_cnt(),
+      plgState->get_futex_word_duration_all().count());
+
+  fprintf(m_traceFile, "State [%d] contains %lu sys_futex operations (%lu wait, %lu wake ops), %f s\n",
+         state->getID(), plgState->get_futex_cnt(), plgState->get_futex_wait_cnt(), plgState->get_futex_wake_cnt(),
+         plgState->get_futex_word_duration_all().count());
+
 }
 
 void SyncTracker::createNewTraceFile(bool append) {
