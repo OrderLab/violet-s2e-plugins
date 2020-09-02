@@ -17,6 +17,7 @@
 using namespace std;
 namespace s2e {
 namespace plugins {
+#define CONFIGURATION 1024
 
 // Define a plugin whose class is LatencyTracker and called "LatencyTracker"
 S2E_DEFINE_PLUGIN(LatencyTracker,                   // Plugin class
@@ -25,7 +26,6 @@ S2E_DEFINE_PLUGIN(LatencyTracker,                   // Plugin class
     );
 
 void LatencyTracker::initialize() {
-  createNewTraceFile(false);
   is_profileAll = s2e()->getConfig()->getBool(getConfigKey() + ".profileAllFunction");
   traceFileIO = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
   traceInstruction = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstruction");
@@ -34,8 +34,8 @@ void LatencyTracker::initialize() {
   // static entry address from the load bias
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
-
-
+  traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
+  createNewTraceFile(false);
   if (traceFileIO) {
     s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
         sigc::mem_fun(*this, &LatencyTracker::onTranslateSpecialInstructionEnd));
@@ -63,6 +63,15 @@ void LatencyTracker::createNewTraceFile(bool append) {
   if (!m_traceFile || !m_symbolicTraceFile || !m_ioTraceFile) {
     getWarningsStream() << "Could not create LatencyTracer.dat" << '\n';
     exit(-1);
+  }
+
+  if(traceInputCallstack) {
+    m_inputFileName = s2e()->getOutputFilename("inputs.txt");
+    m_inputFile = fopen(m_inputFileName.c_str(),"w");
+    if (!m_inputFile ) {
+      getWarningsStream() << "Could not create Callstack.txt" << '\n';
+      exit(-1);
+    }
   }
 }
 
@@ -177,11 +186,23 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
   }
 
   if (guestDataSize != sizeof(command)) {
-    if (!state->mem()->read(guestDataPtr, &configuration, guestDataSize)) {
+    if (guestDataSize == CONFIGURATION) {
+      if (!state->mem()->read(guestDataPtr, &configuration, guestDataSize)) {
       getWarningsStream(state) << "could not read transmitted data\n";
       exit(-1);
     }
     getInfoStream(state) << "the configuration is " << configuration << "\n";
+   } else {
+      char in[2048] = "\0";
+      if (!state->mem()->read(guestDataPtr, &in, guestDataSize)) {
+        getWarningsStream(state) << "could not read transmitted data\n";
+        exit(-1);
+      }
+      input = in;
+      getInfoStream(state) << "the input is " << input << "; data size " << guestDataSize << "\n";
+
+    }
+
     return;
   }
 
@@ -211,7 +232,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
       callSignal = functionMonitor->getCallSignal(state, -1, -1);
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
-
+      plgState->flag = false;
       plgState->setRegState(true);
       break;
 
@@ -236,6 +257,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       if (!plgState->callList[current_tid].empty()) {
         plgState->callLists.push_back(plgState->callList[current_tid]);
         plgState->callList[current_tid].clear();
+        if(traceInputCallstack || !input.empty()) {
+          plgState->inputLists.push_back(input);
+        }
       }
       if (!plgState->returnList[current_tid].empty()) {
         plgState->returnLists.push_back(plgState->returnList[current_tid]);
@@ -251,6 +275,9 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  if(plgState->flag)
+    return;
+
   if ((is_profileAll || !plgState->threadList.empty()) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
     uint64_t addr = state->regs()->getPc();
     // Read the return address of the function call
@@ -278,6 +305,7 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
     }
 
     plgState->functionStart(addr, returnAddress,current_tid);
+    plgState->flag = true;
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
   }
@@ -358,7 +386,6 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
     writeIOToTrace(state);
   }
 
-
   if(!traceFunctionCall)
     return;
 
@@ -377,18 +404,33 @@ void LatencyTracker::getFunctionTracer(S2EExecutionState *state, const ConcreteI
 
 void LatencyTracker::functionForEach(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-
+  int index = 0;
 
   for (auto callList = plgState->callLists.begin(); callList != plgState->callLists.end(); ++callList) {
+    if(traceInputCallstack) {
+      std::string input_string = plgState->inputLists[index];
+      size_t position =  input_string.find('\n');
+      while(position != std::string::npos) {
+        input_string.replace(position, 1, " ");
+        position =  input_string.find('\n');
+      }
+      const char *input = input_string.c_str();
+//      if(input) {
+//        getDebugStream(state) << "input "  << input << "\n";
+//      }
+      fprintf(m_inputFile,"%s\n",input);
+    }
     for (auto iterator = callList->begin(); iterator != callList->end(); ++iterator) {
       if (printTrace) {
         // Originally, we calculate load_bias from plgState->getEntryPoint() - entryAddress
         // Now, we directly use the load_bias from the kernel
         printCallRecord(state, plgState->getLoadBias(), &(iterator->second));
       }
-        writeCallRecord(state, plgState->getLoadBias(), &(iterator->second));
+        writeCallRecord(state, plgState->getLoadBias(), &(iterator->second),index);
     }
+    index++;
   }
+  printConstraints(state,plgState->getLoadBias());
 }
 
 void LatencyTracker::flush() {
@@ -398,10 +440,15 @@ void LatencyTracker::flush() {
   if(m_symbolicTraceFile) {
     fflush(m_symbolicTraceFile);
   }
+  if(m_inputFile) {
+    fflush(m_inputFile);
+  }
 }
 
 void LatencyTracker::printCallRecord(S2EExecutionState *state, uint64_t loadBias,
     struct callRecord *record) {
+//  if(record->acticityId)
+//    return;
   if (record->callerAddress) {
     getInfoStream(state) << "Function "
       << hexval(record->address - loadBias)
@@ -418,21 +465,38 @@ void LatencyTracker::printCallRecord(S2EExecutionState *state, uint64_t loadBias
   }
 }
 
+void LatencyTracker::printConstraints(S2EExecutionState *state, uint64_t loadBias) {
+  getDebugStream(state) << "===== Constraints =====\n";
+  for (auto c : state->constraints.constMap) {
+    getDebugStream(state) << "Function " << hexval(c.first -loadBias) << ", " << "Constraint " << c.second << "\n";
+  }
+  getDebugStream(state) << "\n";
+}
+
+
 bool LatencyTracker::writeCallRecord(S2EExecutionState *state, uint64_t loadBias,
-    struct callRecord *record) {
+    struct callRecord *record, int input) {
   assert(m_traceFile);
   int state_id = 0;
   if (state) {
     state_id = state->getID();
   } 
   // always write state id first
-  if (fwrite(&state_id, sizeof(int), 1, m_traceFile) != 1) {
+  if (!traceInputCallstack) {
+    if (fwrite(&state_id, sizeof(int), 1, m_traceFile) != 1) {
     return false;
-  } 
+    }
+  } else {
+    if (fwrite(&input, sizeof(int), 1, m_traceFile) != 1) {
+      return false;
+    }
+  }
+
   uint64_t rawAddress = record->address;
   if (loadBias != 0) {
     // only update the address is the entry point was set
     record->address = rawAddress - loadBias;
+    record->callerAddress = record->callerAddress - loadBias;
   }
   // the address written to the trace file will be based on the entry
   // address in the ELF file, instead of the dynamic entry point.
@@ -548,6 +612,10 @@ LatencyTracker::~LatencyTracker() {
   if(m_symbolicTraceFile) {
     fclose(m_symbolicTraceFile);
     m_symbolicTraceFile = nullptr;
+  }
+  if(m_inputFile) {
+    fclose(m_inputFile);
+    m_inputFile = nullptr;
   }
 }
 

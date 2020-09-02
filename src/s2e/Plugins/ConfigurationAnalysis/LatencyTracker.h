@@ -45,6 +45,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
   private:
     std::string m_fileName;
     FILE *m_traceFile;
+    std::string m_inputFileName;
+    FILE *m_inputFile;
     std::string m_symbolicFileName;
     FILE *m_symbolicTraceFile;
     std::string m_ioFileName;
@@ -54,12 +56,14 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     bool traceFileIO;
     bool traceInstruction;
     bool traceFunctionCall;
+    bool traceInputCallstack;
     // @deprecated
     uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
     LinuxMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
     char configuration[1024] = "\0"; // IMPORTANT!! the definition must be consistent with the mysqld
+    std::string input;
 
     struct concreteConstraint {
       int id;
@@ -92,7 +96,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       is_profileAll = false;
       traceFileIO = false;
       traceInstruction = false;
-
+      traceInputCallstack = false;
     }
 
     ~LatencyTracker();
@@ -117,9 +121,10 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void calculateLatency(S2EExecutionState *state);
 
     void printCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
-    bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record);
+    bool writeCallRecord(S2EExecutionState *state, uint64_t loadBias, CallSignal *record, int input);
     void writeTestCaseToTrace(S2EExecutionState *state, const ConcreteInputs &inputs);
     void writeIOToTrace(S2EExecutionState *state);
+    void printConstraints(S2EExecutionState *state, uint64_t loadBias);
     void flush();
 };
 
@@ -148,12 +153,14 @@ class LatencyTrackerState : public PluginState {
 
     std::vector<FunctionCallRecord> callLists;
     std::vector<std::vector<RetSignal>> returnLists;
+    std::vector<std::string> inputLists;
     std::map <ThreadId, FunctionCallRecord> callList;
     std::map <ThreadId, FunctionRetRecord> returnList;
     int syscallCount;
     std::map <ThreadId, uint64_t > IdList;
     uint64_t m_Pid;
     std::vector<uint64_t> threadList;
+    bool flag = false;
 
 
     LatencyTrackerState() {

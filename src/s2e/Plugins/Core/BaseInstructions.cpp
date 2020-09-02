@@ -917,7 +917,9 @@ void BaseInstructions::handleBuiltInOps(S2EExecutionState *state, uint64_t opcod
         case VIOLET_S2E_CONCRETIZEALL:
             concretizeAll(state);
             break;
-
+        case VIOLET_S2E_COLLECT_CONSTRAINT:
+          state->collectConstraints();
+          break;
         case BASE_S2E_EXAMPLE: { /* s2e_get_example */
             concretize(state, false);
             break;
