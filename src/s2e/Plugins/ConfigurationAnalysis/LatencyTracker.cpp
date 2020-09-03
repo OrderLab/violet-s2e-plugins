@@ -34,7 +34,7 @@ void LatencyTracker::initialize() {
   // static entry address from the load bias
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
-  traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
+//  traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
   createNewTraceFile(false);
   if (traceFileIO) {
     s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
@@ -215,6 +215,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       getInfoStream(state) << "Get the address at pc = " << hexval(state->regs()->getPc())<< '\n';
       break;
     case TRACK_START:
+      getInfoStream(state) << "call track start\n";
       functionMonitor = s2e()->getPlugin<FunctionMonitor>();
       linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
       if (!functionMonitor) {
@@ -430,7 +431,7 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
     }
     index++;
   }
-  printConstraints(state,plgState->getLoadBias());
+//  printConstraints(state,plgState->getLoadBias());
 }
 
 void LatencyTracker::flush() {

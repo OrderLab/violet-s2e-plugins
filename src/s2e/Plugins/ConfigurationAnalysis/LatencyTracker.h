@@ -46,7 +46,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     std::string m_fileName;
     FILE *m_traceFile;
     std::string m_inputFileName;
-    FILE *m_inputFile;
+    FILE *m_inputFile=NULL;
     std::string m_symbolicFileName;
     FILE *m_symbolicTraceFile;
     std::string m_ioFileName;
@@ -56,7 +56,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     bool traceFileIO;
     bool traceInstruction;
     bool traceFunctionCall;
-    bool traceInputCallstack;
+    bool traceInputCallstack = false;
     // @deprecated
     uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
