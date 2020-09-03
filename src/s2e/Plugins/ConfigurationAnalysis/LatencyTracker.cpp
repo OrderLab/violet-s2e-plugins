@@ -27,14 +27,15 @@ S2E_DEFINE_PLUGIN(LatencyTracker,                   // Plugin class
 
 void LatencyTracker::initialize() {
   is_profileAll = s2e()->getConfig()->getBool(getConfigKey() + ".profileAllFunction");
-  traceFileIO = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
+  traceFileIO = s2e()->getConfig()->getBool(getConfigKey() + ".traceFileIO");
+  traceSyscall = s2e()->getConfig()->getBool(getConfigKey() + ".traceSyscall");
   traceInstruction = s2e()->getConfig()->getBool(getConfigKey() + ".traceInstruction");
   traceFunctionCall = s2e()->getConfig()->getBool(getConfigKey() + ".traceFunctionCall");
   // entryAddress config is deprecated: now we can directly calculate the
   // static entry address from the load bias
   entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
-//  traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
+  traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
   createNewTraceFile(false);
   if (traceFileIO) {
     s2e()->getCorePlugin()->onTranslateSpecialInstructionEnd.connect(
@@ -85,7 +86,12 @@ void LatencyTracker::onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S
 
 void LatencyTracker::onInstructionExecution(S2EExecutionState *state, uint64_t pc) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  plgState->incrementInstructionCount();
+  plgState->addInstructions();
+}
+
+void LatencyTracker::countSyscall(S2EExecutionState *state) {
+  DECLARE_PLUGINSTATE(LatencyTrackerState, state);
+  plgState->syscallCount++;
 }
 
 void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
@@ -101,6 +107,9 @@ void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
   if(std::find(plgState->threadList.begin(), plgState->threadList.end(), current_tid) == plgState->threadList.end()) {
     return;
   }
+
+  if (traceSyscall)
+    countSyscall(state);
 
   // get value from eax and edx register
   bool ok = state->regs()->read(CPU_OFFSET(regs[R_EAX]), &eax, sizeof(eax));
@@ -130,7 +139,7 @@ void LatencyTracker::onSyscall(S2EExecutionState *state, uint64_t pc) {
 
 int LatencyTracker::getInstructionNumber(S2EExecutionState *state) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  return plgState->getInstructionCount();
+  return plgState->getInstructions();
 }
 
 int LatencyTracker::getSyscall(S2EExecutionState *state) {
@@ -215,7 +224,6 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       getInfoStream(state) << "Get the address at pc = " << hexval(state->regs()->getPc())<< '\n';
       break;
     case TRACK_START:
-      getInfoStream(state) << "call track start\n";
       functionMonitor = s2e()->getPlugin<FunctionMonitor>();
       linuxMonitor = s2e()->getPlugin<LinuxMonitor>();
       if (!functionMonitor) {

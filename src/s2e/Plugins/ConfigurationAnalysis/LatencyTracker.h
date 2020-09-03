@@ -54,6 +54,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     bool is_profileAll;
     bool printTrace;
     bool traceFileIO;
+    bool traceSyscall;
     bool traceInstruction;
     bool traceFunctionCall;
     bool traceInputCallstack = false;
@@ -97,6 +98,8 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
       traceFileIO = false;
       traceInstruction = false;
       traceInputCallstack = false;
+      traceInstruction = false;
+      traceSyscall = false;
     }
 
     ~LatencyTracker();
@@ -113,6 +116,7 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     void functionRetMonitor(S2EExecutionState *state);
     void functionForEach(S2EExecutionState *state);
     void onSysenter(S2EExecutionState* state, uint64_t pc);
+    void countSyscall(S2EExecutionState *state);
     void onTranslateSpecialInstructionEnd(ExecutionSignal *signal, S2EExecutionState *state,TranslationBlock *tb, uint64_t pc, special_instruction_t type);
     void handleOpcodeInvocation(S2EExecutionState *state, uint64_t guestDataPtr, uint64_t guestDataSize);
     void onSyscall(S2EExecutionState* state, uint64_t pc);
@@ -156,7 +160,7 @@ class LatencyTrackerState : public PluginState {
     std::vector<std::string> inputLists;
     std::map <ThreadId, FunctionCallRecord> callList;
     std::map <ThreadId, FunctionRetRecord> returnList;
-    int syscallCount;
+    uint64_t syscallCount;
     std::map <ThreadId, uint64_t > IdList;
     uint64_t m_Pid;
     std::vector<uint64_t> threadList;
@@ -209,11 +213,11 @@ class LatencyTrackerState : public PluginState {
       return new LatencyTrackerState(*this);
     }
 
-    void incrementInstructionCount() {
+    void addInstructions() {
       ++instructionCount;
     }
 
-    inline int getInstructionCount() {
+    inline int getInstructions() {
       return instructionCount;
     }
 
