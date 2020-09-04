@@ -264,18 +264,16 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       }
 
       if (!plgState->callList[current_tid].empty()) {
-        plgState->callLists.push_back(plgState->callList[current_tid]);
+         plgState->callLists.push_back(plgState->callList[current_tid]);
         plgState->callList[current_tid].clear();
         if(traceInputCallstack || !input.empty()) {
           plgState->inputLists.push_back(input);
         }
       }
-      if (!plgState->returnList[current_tid].empty()) {
+//      if (!plgState->returnList[current_tid].empty()) {
         plgState->returnLists.push_back(plgState->returnList[current_tid]);
-        std::vector<RetSignal> returnList = plgState->returnLists.back();
-
         plgState->returnList[current_tid].clear();
-      }
+//      }
       break;
 
 
@@ -489,11 +487,12 @@ bool LatencyTracker::writeCallRecord(S2EExecutionState *state, uint64_t loadBias
   int state_id = 0;
   if (state) {
     state_id = state->getID();
-  } 
+  }
+
   // always write state id first
   if (!traceInputCallstack) {
     if (fwrite(&state_id, sizeof(int), 1, m_traceFile) != 1) {
-    return false;
+      return false;
     }
   } else {
     if (fwrite(&input, sizeof(int), 1, m_traceFile) != 1) {
