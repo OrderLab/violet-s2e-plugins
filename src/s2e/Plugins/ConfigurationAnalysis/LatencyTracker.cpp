@@ -33,7 +33,6 @@ void LatencyTracker::initialize() {
   traceFunctionCall = s2e()->getConfig()->getBool(getConfigKey() + ".traceFunctionCall");
   // entryAddress config is deprecated: now we can directly calculate the
   // static entry address from the load bias
-  entryAddress = (uint64_t) s2e()->getConfig()->getInt(getConfigKey() + ".entryAddress");
   printTrace = s2e()->getConfig()->getBool(getConfigKey() + ".printTrace");
   traceInputCallstack = s2e()->getConfig()->getBool((getConfigKey() + ".traceInput"));
   createNewTraceFile(false);
@@ -152,9 +151,8 @@ void LatencyTracker::onTranslateInstruction(ExecutionSignal *signal,
     TranslationBlock *tb,
     uint64_t pc) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  uint64_t entryPoint = plgState->getEntryPoint();
 
-  if (entryPoint && traceInstruction) {
+  if (traceInstruction) {
     signal->connect(sigc::mem_fun(*this, &LatencyTracker::onInstructionExecution));
   }
 
@@ -264,7 +262,6 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
       }
 
       if (!plgState->callList[current_tid].empty()) {
-        getWarningsStream(state) << "check the case\n";
         if(plgState->callList[current_tid].size() == 1 && plgState->returnList[current_tid].empty())
           return;
 

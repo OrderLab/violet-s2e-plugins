@@ -58,8 +58,6 @@ class LatencyTracker : public Plugin, public IPluginInvoker {
     bool traceInstruction;
     bool traceFunctionCall;
     bool traceInputCallstack = false;
-    // @deprecated
-    uint64_t entryAddress;
     FunctionMonitor* functionMonitor;
     LinuxMonitor* linuxMonitor;
     FunctionMonitor::CallSignal* callSignal;
