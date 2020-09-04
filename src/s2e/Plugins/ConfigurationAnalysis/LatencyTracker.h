@@ -188,6 +188,7 @@ class LatencyTrackerState : public PluginState {
       callLists = trackerState.callLists;
       returnLists = trackerState.returnLists;
       syscallCount = trackerState.syscallCount;
+      instructionCount = trackerState.instructionCount;
       m_Pid = trackerState.m_Pid;
       threadList = trackerState.threadList;
       IdList = trackerState.IdList;
