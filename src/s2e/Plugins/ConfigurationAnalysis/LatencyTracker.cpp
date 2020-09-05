@@ -239,7 +239,7 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
       callSignal = functionMonitor->getCallSignal(state, -1, -1);
       callSignal->connect(sigc::mem_fun(*this, &LatencyTracker::functionCallMonitor));
-      plgState->flag = false;
+
       plgState->setRegState(true);
       break;
 
@@ -281,8 +281,6 @@ void LatencyTracker::handleOpcodeInvocation(S2EExecutionState *state, uint64_t g
 
 void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonitorState *fms) {
   DECLARE_PLUGINSTATE(LatencyTrackerState, state);
-  if(plgState->flag)
-    return;
 
   if ((is_profileAll || !plgState->threadList.empty()) && (linuxMonitor->getPid(state) == plgState->m_Pid)) {
     uint64_t addr = state->regs()->getPc();
@@ -311,7 +309,6 @@ void LatencyTracker::functionCallMonitor(S2EExecutionState *state, FunctionMonit
     }
 
     plgState->functionStart(addr, returnAddress,current_tid);
-    plgState->flag = true;
 
     FUNCMON_REGISTER_RETURN(state, fms, LatencyTracker::functionRetMonitor);
   }
@@ -432,7 +429,8 @@ void LatencyTracker::functionForEach(S2EExecutionState *state) {
         // Now, we directly use the load_bias from the kernel
         printCallRecord(state, plgState->getLoadBias(), &(iterator->second));
       }
-        writeCallRecord(state, plgState->getLoadBias(), &(iterator->second),index);
+        if(!writeCallRecord(state, plgState->getLoadBias(), &(iterator->second),index))
+          getWarningsStream(state) << "write call record failed\n";
     }
     index++;
   }
